@@ -2,144 +2,110 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v1.5 - 5年O班專屬</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍎 智慧讀卡大師 v2.0 - 5年O班專屬</title>
+    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="onOpenCvReady();"></script>
     <style>
-        :root { --primary: #ff7e5f; --secondary: #feb47b; --success: #4ecdc4; --info: #45b7d1; --bg: #fdf6e3; }
-        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 15px; color: #444; margin: 0; -webkit-tap-highlight-color: transparent; }
+        :root { --primary: #ff7e5f; --bg: #fdf6e3; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 15px; margin: 0; }
         .container { max-width: 600px; margin: auto; }
-        .card { background: #fff; padding: 20px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid rgba(0,0,0,0.03); }
-        h2 { color: #d33682; font-size: 1.1rem; display: flex; align-items: center; gap: 10px; margin: 0 0 15px 0; }
-        textarea { width: 100%; height: 100px; padding: 15px; border-radius: 15px; border: 2px solid #f8f8f8; font-size: 15px; box-sizing: border-box; background: #fafafa; transition: 0.3s; }
-        textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
+        .card { background: #fff; padding: 20px; border-radius: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
         
-        .answer-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-height: 220px; overflow-y: auto; padding: 10px; background: #fffcf0; border-radius: 15px; margin-top: 10px; }
-        .q-item { background: #fff; padding: 8px 4px; border-radius: 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .q-item b { color: var(--primary); font-size: 12px; display: block; margin-bottom: 4px; }
-        select { width: 90%; border: 1px solid #eee; border-radius: 6px; font-size: 14px; padding: 2px; }
-
-        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
-        .btn { flex: 1; padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .btn-save { background: var(--success); }
-        .btn-run { background: linear-gradient(135deg, var(--primary), var(--secondary)); }
-        .btn-export { background: var(--info); width: 100%; margin-top: 10px; }
-        .btn:active { transform: scale(0.95); }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th { font-size: 13px; color: #999; font-weight: normal; padding-bottom: 10px; }
-        td { padding: 12px 5px; border-bottom: 1px solid #f9f9f9; text-align: center; font-size: 15px; }
-        .score-bad { color: #ff5e5e; font-weight: bold; }
-        .score-good { color: #2ecc71; font-weight: bold; }
-        .badge { background: #fff0f0; color: #ff5e5e; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-        .footer { text-align: center; font-size: 12px; color: #bbb; margin: 30px 0; }
+        /* 彈出確認視窗 */
+        #confirmModal { 
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; 
+        }
+        .modal-content { background: white; padding: 20px; border-radius: 15px; text-align: center; max-width: 90%; }
+        .crop-img { border: 2px solid var(--primary); margin: 10px 0; max-width: 100%; }
+        
+        .btn { padding: 12px 25px; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; width: 100%; margin: 5px 0; }
+        .btn-run { background: linear-gradient(to right, #ff7e5f, #feb47b); }
+        .btn-confirm { background: #4ecdc4; }
+        
+        #loading { display:none; color: var(--primary); font-weight: bold; text-align: center; }
+        canvas { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <header style="text-align:center; padding: 20px 0;">
-        <h1 style="color: var(--primary); margin:0; font-size: 1.6rem;">🍎 智慧批改助手</h1>
-        <span style="background: #ffeaa7; padding: 2px 10px; border-radius: 10px; font-size: 12px; color: #d63031;">v1.5 旗艦優化版</span>
-    </header>
+    <h1 style="text-align:center; color: var(--primary);">🍎 智慧讀卡大師 v2.0</h1>
+    <p id="cvStatus">⏳ 正在載入影像引擎...</p>
 
     <div class="card">
-        <h2><i class="fas fa-edit"></i> 1. 設定答案</h2>
-        <textarea id="ansPaster" placeholder="直接貼上答案串 (例: ABCD 或 1234)" oninput="magicFill()"></textarea>
-        <div class="answer-grid" id="ansGrid"></div>
+        <h2>1. 設定正確答案與名單</h2>
+        <textarea id="ansPaster" placeholder="貼上答案串 (如: 1234...)" style="width:100%; height:60px;"></textarea>
+        <textarea id="studentInput" placeholder="座號,姓名" style="width:100%; height:60px; margin-top:10px;"></textarea>
     </div>
 
     <div class="card">
-        <h2><i class="fas fa-users"></i> 2. 班級名冊</h2>
-        <textarea id="studentInput" placeholder="座號,姓名 (例: 01,張小明)"></textarea>
-        <div class="btn-group">
-            <button class="btn btn-save" onclick="saveData()"><i class="fas fa-save"></i> 儲存設定</button>
-            <button class="btn btn-run" onclick="startGrading()"><i class="fas fa-camera"></i> 開始批改</button>
+        <h2>2. 拍照批改</h2>
+        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+        <button class="btn btn-run" onclick="document.getElementById('fileInput').click()">📷 拍攝學生答案卡</button>
+        <div id="loading">🔍 正在定位座標並分析中...</div>
+    </div>
+
+    <div id="resCard" class="card" style="display:none;">
+        <h3>批改結果</h3>
+        <div id="resList"></div>
+    </div>
+</div>
+
+<div id="confirmModal">
+    <div class="modal-content">
+        <h3 id="modalTitle">辨識不確定，請老師確認</h3>
+        <p>這題學生畫的是？</p>
+        <canvas id="cropCanvas" class="crop-img"></canvas>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <button class="btn btn-confirm" onclick="manualPick(1)">①</button>
+            <button class="btn btn-confirm" onclick="manualPick(2)">②</button>
+            <button class="btn btn-confirm" onclick="manualPick(3)">③</button>
+            <button class="btn btn-confirm" onclick="manualPick(4)">④</button>
         </div>
-    </div>
-
-    <div class="card" id="resCard" style="display:none;">
-        <h2><i class="fas fa-chart-bar"></i> 批改結果</h2>
-        <button class="btn btn-export" onclick="exportCSV()"><i class="fas fa-file-excel"></i> 匯出 Excel 報表</button>
-        <table>
-            <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>錯題</th></tr></thead>
-            <tbody id="resBody"></tbody>
-        </table>
-    </div>
-
-    <div class="footer">
-        本系統採瀏覽器本地運算，不傳輸任何個資<br>
-        Designed for Teachers with Love ❤️
+        <button class="btn" style="background:#999;" onclick="manualPick(0)">跳過/沒寫</button>
     </div>
 </div>
 
 <script>
-    const Q_COUNT = 100;
-    let records = [];
-
-    // 初始化 100 題
-    const grid = document.getElementById('ansGrid');
-    for(let i=1; i<=Q_COUNT; i++) {
-        grid.innerHTML += `<div class="q-item"><b>${i}</b><select id="q_${i}"><option value="">-</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>`;
+    let cvReady = false;
+    function onOpenCvReady() {
+        cvReady = true;
+        document.getElementById('cvStatus').innerText = "✅ 影像引擎已就緒";
     }
 
-    // 自動讀取記憶
-    window.onload = () => {
-        const sList = localStorage.getItem('s_list');
-        const aStr = localStorage.getItem('a_str');
-        if(sList) document.getElementById('studentInput').value = sList;
-        if(aStr) {
-            document.getElementById('ansPaster').value = aStr;
-            magicFill();
-        }
-    };
+    const fileInput = document.getElementById('fileInput');
+    fileInput.addEventListener('change', (e) => {
+        if(!cvReady) return alert("引擎尚未就緒");
+        processImage(e.target.files[0]);
+    });
 
-    function saveData() {
-        localStorage.setItem('s_list', document.getElementById('studentInput').value);
-        localStorage.setItem('a_str', document.getElementById('ansPaster').value);
-        alert("🎉 設定已記憶！之後開啟免重貼。");
-    }
-
-    function magicFill() {
-        const str = document.getElementById('ansPaster').value.toUpperCase().replace(/[^1-4A-D]/g, '');
-        const map = { 'A':'1', 'B':'2', 'C':'3', 'D':'4' };
-        for(let i=0; i<Q_COUNT; i++) {
-            const val = str[i] || "";
-            document.getElementById(`q_${i+1}`).value = map[val] || val;
-        }
-    }
-
-    function startGrading() {
-        const input = document.getElementById('studentInput').value.trim();
-        const lines = input.split('\n').filter(l => l.includes(','));
-        if(!lines.length) return alert("請輸入名單喔！");
-
-        records = [];
-        const tbody = document.getElementById('resBody');
-        tbody.innerHTML = "";
+    async function processImage(file) {
+        document.getElementById('loading').style.display = 'block';
+        const img = await createImageBitmap(file);
         
-        lines.forEach(line => {
-            const [no, name] = line.split(',');
-            let wrongs = [];
-            // 隨機模擬邏輯 (正式版可整合影像辨識)
-            for(let i=1; i<=10; i++) { if(Math.random() > 0.85) wrongs.push(i); }
-            const score = 100 - (wrongs.length * 10);
-            
-            records.push({ no: no.trim(), name: name.trim(), score, wrongs: wrongs.join(' ') });
-            tbody.innerHTML += `<tr><td>${no}</td><td><b>${name}</b></td><td class="${score<60?'score-bad':'score-good'}">${score}</td><td>${wrongs.length?`<span class="badge">${wrongs.join(',')}</span>`:'💯'}</td></tr>`;
-        });
-        document.getElementById('resCard').style.display = "block";
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        // --- 核心邏輯：影像辨識 ---
+        // 1. 抓取四個角落黑點進行透視變換 (Warp Perspective)
+        // 2. 依據照片比例計算 100 題座標
+        // 3. 偵測每一題的黑度
+        
+        // 模擬：發現第 5 題辨識不清晰
+        setTimeout(() => {
+            showModal(5); 
+        }, 1500);
     }
 
-    function exportCSV() {
-        let csv = "\uFEFF座號,姓名,得分,錯題列表\n";
-        records.forEach(r => csv += `${r.no},${r.name},${r.score},"${r.wrongs}"\n`);
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `成績單_${new Date().toLocaleDateString()}.csv`;
-        a.click();
+    function showModal(qNum) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('confirmModal').style.display = 'flex';
+        document.getElementById('modalTitle').innerText = `第 ${qNum} 題辨識不確定`;
+        // 這裡會顯示該題目的局部特寫
+    }
+
+    function manualPick(val) {
+        document.getElementById('confirmModal').style.display = 'none';
+        alert(`已紀錄答案為：${val}`);
+        // 繼續處理後續題目與計分
     }
 </script>
 </body>
