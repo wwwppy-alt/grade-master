@@ -3,110 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍎 智慧讀卡大師 v2.0 - 5年O班專屬</title>
+    <title>🍎 智慧讀卡大師 v2.1 - 自動座號版</title>
     <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="onOpenCvReady();"></script>
     <style>
-        :root { --primary: #ff7e5f; --bg: #fdf6e3; }
-        body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); padding: 15px; margin: 0; }
+        :root { --primary: #ff7e5f; --accent: #feb47b; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #fdf6e3; padding: 15px; margin: 0; }
         .container { max-width: 600px; margin: auto; }
         .card { background: #fff; padding: 20px; border-radius: 20px; box-shadow: 0 8px 20px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        
-        /* 彈出確認視窗 */
-        #confirmModal { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; 
-        }
-        .modal-content { background: white; padding: 20px; border-radius: 15px; text-align: center; max-width: 90%; }
-        .crop-img { border: 2px solid var(--primary); margin: 10px 0; max-width: 100%; }
-        
-        .btn { padding: 12px 25px; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; width: 100%; margin: 5px 0; }
-        .btn-run { background: linear-gradient(to right, #ff7e5f, #feb47b); }
-        .btn-confirm { background: #4ecdc4; }
-        
-        #loading { display:none; color: var(--primary); font-weight: bold; text-align: center; }
-        canvas { display: none; }
+        .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 16px; margin: 10px 0; }
+        .btn-run { background: linear-gradient(135deg, var(--primary), var(--accent)); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
+        .current-student { background: #fff9db; font-weight: bold; border: 2px solid #fab005; border-radius: 10px; padding: 10px; margin-bottom: 10px; text-align: center; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 style="text-align:center; color: var(--primary);">🍎 智慧讀卡大師 v2.0</h1>
-    <p id="cvStatus">⏳ 正在載入影像引擎...</p>
-
-    <div class="card">
-        <h2>1. 設定正確答案與名單</h2>
-        <textarea id="ansPaster" placeholder="貼上答案串 (如: 1234...)" style="width:100%; height:60px;"></textarea>
-        <textarea id="studentInput" placeholder="座號,姓名" style="width:100%; height:60px; margin-top:10px;"></textarea>
+    <h1 style="text-align:center; color: var(--primary);">🍎 智慧讀卡大師 v2.1</h1>
+    
+    <div id="activeStudent" class="current-student" style="display:none;">
+        正在批改：<span id="displayNo">--</span> 號 <span id="displayName">--</span>
     </div>
 
     <div class="card">
-        <h2>2. 拍照批改</h2>
+        <h2>1. 基礎設定</h2>
+        <textarea id="studentInput" placeholder="座號,姓名 (例: 01,張小明)" style="width:100%; height:80px;"></textarea>
+        <button class="btn" style="background:#4ecdc4;" onclick="saveConfig()">💾 儲存名單與設定</button>
+    </div>
+
+    <div class="card">
+        <h2>2. 依座號順序批改</h2>
+        <p style="font-size:0.9em; color: #666;">提示：請依學生座號順序拍照，系統會自動跳號。</p>
         <input type="file" id="fileInput" accept="image/*" style="display:none;">
-        <button class="btn btn-run" onclick="document.getElementById('fileInput').click()">📷 拍攝學生答案卡</button>
-        <div id="loading">🔍 正在定位座標並分析中...</div>
+        <button class="btn btn-run" onclick="triggerCamera()">📷 拍下下一位學生 (座號：<span id="nextNo">01</span>)</button>
     </div>
 
     <div id="resCard" class="card" style="display:none;">
-        <h3>批改結果</h3>
-        <div id="resList"></div>
-    </div>
-</div>
-
-<div id="confirmModal">
-    <div class="modal-content">
-        <h3 id="modalTitle">辨識不確定，請老師確認</h3>
-        <p>這題學生畫的是？</p>
-        <canvas id="cropCanvas" class="crop-img"></canvas>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <button class="btn btn-confirm" onclick="manualPick(1)">①</button>
-            <button class="btn btn-confirm" onclick="manualPick(2)">②</button>
-            <button class="btn btn-confirm" onclick="manualPick(3)">③</button>
-            <button class="btn btn-confirm" onclick="manualPick(4)">④</button>
-        </div>
-        <button class="btn" style="background:#999;" onclick="manualPick(0)">跳過/沒寫</button>
+        <h3>📊 班級成績清單 (依座號排序)</h3>
+        <table>
+            <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>狀態</th></tr></thead>
+            <tbody id="resBody"></tbody>
+        </table>
     </div>
 </div>
 
 <script>
-    let cvReady = false;
-    function onOpenCvReady() {
-        cvReady = true;
-        document.getElementById('cvStatus').innerText = "✅ 影像引擎已就緒";
+    let currentIdx = 0;
+    let studentList = [];
+    let allResults = {};
+
+    function saveConfig() {
+        const raw = document.getElementById('studentInput').value.trim();
+        localStorage.setItem('s_list_v2', raw);
+        parseList(raw);
+        alert("名單已儲存！");
     }
 
-    const fileInput = document.getElementById('fileInput');
-    fileInput.addEventListener('change', (e) => {
-        if(!cvReady) return alert("引擎尚未就緒");
-        processImage(e.target.files[0]);
+    function parseList(raw) {
+        studentList = raw.split('\n').filter(l => l.includes(',')).map(l => {
+            const [no, name] = l.split(',');
+            return { no: no.trim(), name: name.trim() };
+        });
+        updateNextDisplay();
+    }
+
+    function updateNextDisplay() {
+        if (studentList[currentIdx]) {
+            document.getElementById('nextNo').innerText = studentList[currentIdx].no;
+        } else {
+            document.getElementById('nextNo').innerText = "已全數完成";
+        }
+    }
+
+    function triggerCamera() {
+        if (currentIdx >= studentList.length) return alert("所有學生都批改完囉！");
+        document.getElementById('fileInput').click();
+    }
+
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const student = studentList[currentIdx];
+        
+        // 顯示目前處理中的學生
+        document.getElementById('activeStudent').style.display = 'block';
+        document.getElementById('displayNo').innerText = student.no;
+        document.getElementById('displayName').innerText = student.name;
+
+        // --- 這裡接方案 B 的 OpenCV 影像辨識邏輯 ---
+        // 模擬辨識與計分
+        const score = Math.floor(Math.random() * 21) * 5; // 模擬分數
+        allResults[student.no] = { name: student.name, score: score };
+
+        renderTable();
+        currentIdx++;
+        updateNextDisplay();
+        
+        // 捲動到最下面方便看結果
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     });
 
-    async function processImage(file) {
-        document.getElementById('loading').style.display = 'block';
-        const img = await createImageBitmap(file);
+    function renderTable() {
+        const tbody = document.getElementById('resBody');
+        tbody.innerHTML = "";
+        document.getElementById('resCard').style.display = 'block';
         
-        // --- 核心邏輯：影像辨識 ---
-        // 1. 抓取四個角落黑點進行透視變換 (Warp Perspective)
-        // 2. 依據照片比例計算 100 題座標
-        // 3. 偵測每一題的黑度
-        
-        // 模擬：發現第 5 題辨識不清晰
-        setTimeout(() => {
-            showModal(5); 
-        }, 1500);
+        // 永遠依座號排序顯示
+        studentList.forEach(s => {
+            if (allResults[s.no]) {
+                const r = allResults[s.no];
+                tbody.innerHTML += `<tr><td>${s.no}</td><td>${r.name}</td><td><b>${r.score}</b></td><td>✅ 已批改</td></tr>`;
+            }
+        });
     }
 
-    function showModal(qNum) {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('confirmModal').style.display = 'flex';
-        document.getElementById('modalTitle').innerText = `第 ${qNum} 題辨識不確定`;
-        // 這裡會顯示該題目的局部特寫
-    }
-
-    function manualPick(val) {
-        document.getElementById('confirmModal').style.display = 'none';
-        alert(`已紀錄答案為：${val}`);
-        // 繼續處理後續題目與計分
-    }
+    // 初始載入
+    window.onload = () => {
+        const saved = localStorage.getItem('s_list_v2');
+        if (saved) {
+            document.getElementById('studentInput').value = saved;
+            parseList(saved);
+        }
+    };
+    
+    function onOpenCvReady() { console.log("OpenCV Ready"); }
 </script>
 </body>
 </html>
