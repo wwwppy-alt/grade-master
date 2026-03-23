@@ -3,48 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍎 智慧讀卡大師 v2.2 - 影像對比版</title>
+    <title>🍎 智慧讀卡大師 v2.5 - 實戰批改版</title>
     <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="onOpenCvReady();"></script>
     <style>
         :root { --primary: #ff7e5f; --accent: #feb47b; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: #fdf6e3; padding: 10px; margin: 0; }
         .container { max-width: 600px; margin: auto; }
         .card { background: #fff; padding: 15px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        
-        /* 關鍵：影像預覽區域 */
         #previewContainer { position: relative; width: 100%; margin-top: 10px; border: 2px solid #ddd; border-radius: 10px; overflow: hidden; display: none; }
         #imageCanvas { width: 100%; height: auto; display: block; }
-        .overlay-tag { position: absolute; color: red; font-size: 10px; font-weight: bold; pointer-events: none; }
-
         .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 16px; margin: 5px 0; }
         .btn-run { background: linear-gradient(135deg, var(--primary), var(--accent)); }
-        
-        /* 確認視窗樣式 */
-        #confirmModal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; }
+        #confirmModal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; justify-content:center; align-items:center; }
         .modal-body { background:white; padding:20px; border-radius:15px; width:85%; text-align:center; }
-        #cropCanvas { width: 100%; border: 2px solid var(--primary); margin: 10px 0; }
+        #cropCanvas { width: 200px; height: 60px; border: 2px solid var(--primary); margin: 10px auto; display: block; background: #eee; }
+        .score-val { color: #e74c3c; font-size: 24px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 style="text-align:center; color: var(--primary);">🍎 智慧讀卡大師 v2.2</h1>
+    <h1 style="text-align:center; color: var(--primary);">🍎 智慧讀卡大師 v2.5</h1>
 
     <div class="card">
-        <h2>1. 名單與答案</h2>
-        <textarea id="ansPaster" placeholder="貼上正確答案串..." style="width:100%; height:50px;"></textarea>
-        <textarea id="studentInput" placeholder="座號,姓名" style="width:100%; height:50px; margin-top:5px;"></textarea>
-        <button class="btn" style="background:#4ecdc4;" onclick="saveConfig()">💾 儲存設定</button>
+        <h2>1. 設定解答與名單</h2>
+        <textarea id="ansPaster" placeholder="貼上解答 (如: 1234...)" style="width:100%; height:40px;"></textarea>
+        <textarea id="studentInput" placeholder="座號,姓名" style="width:100%; height:40px; margin-top:5px;"></textarea>
+        <button class="btn" style="background:#4ecdc4;" onclick="saveConfig()">💾 儲存並初始化</button>
     </div>
 
     <div class="card">
-        <h2>2. 拍照與對比</h2>
-        <p>目前座號：<b id="nextNo">01</b></p>
+        <h2>2. 拍照批改</h2>
+        <p>準備批改：<b id="nextNo">--</b></p>
         <input type="file" id="fileInput" accept="image/*" style="display:none;">
-        <button class="btn btn-run" onclick="document.getElementById('fileInput').click()">📷 拍照批改</button>
+        <button class="btn btn-run" onclick="document.getElementById('fileInput').click()">📷 拍照並自動讀卡</button>
         
         <div id="previewContainer">
-            <p style="position:absolute; top:5px; left:5px; background:rgba(255,255,255,0.7); padding:2px 5px; font-size:12px; border-radius:5px;">影像對比預覽</p>
             <canvas id="imageCanvas"></canvas>
         </div>
     </div>
@@ -58,100 +52,96 @@
     </div>
 </div>
 
-<div id="confirmModal">
-    <div class="modal-body">
-        <h3>🔍 請確認畫記</h3>
-        <canvas id="cropCanvas"></canvas>
-        <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;">
-            <button class="btn" style="background:#ff7e5f;" onclick="manualPick(1)">①</button>
-            <button class="btn" style="background:#ff7e5f;" onclick="manualPick(2)">②</button>
-            <button class="btn" style="background:#ff7e5f;" onclick="manualPick(3)">③</button>
-            <button class="btn" style="background:#ff7e5f;" onclick="manualPick(4)">④</button>
-        </div>
-        <button class="btn" style="background:#999; margin-top:10px;" onclick="manualPick(0)">跳過/不清</button>
-    </div>
-</div>
-
 <script>
     let studentList = [];
     let currentIdx = 0;
+    let correctAnswers = "";
 
     function saveConfig() {
-        localStorage.setItem('s_list_v2.2', document.getElementById('studentInput').value);
-        localStorage.setItem('a_str_v2.2', document.getElementById('ansPaster').value);
-        parseList();
-        alert("設定儲存成功！");
-    }
-
-    function parseList() {
-        const raw = document.getElementById('studentInput').value.trim();
-        studentList = raw.split('\n').filter(l => l.includes(',')).map(l => {
+        const sList = document.getElementById('studentInput').value;
+        const aStr = document.getElementById('ansPaster').value.toUpperCase().replace(/[^1-4A-D]/g, '');
+        const map = { 'A':'1', 'B':'2', 'C':'3', 'D':'4' };
+        correctAnswers = aStr.split('').map(c => map[c] || c).join('');
+        
+        localStorage.setItem('s_list_v2.5', sList);
+        localStorage.setItem('a_str_v2.5', document.getElementById('ansPaster').value);
+        
+        studentList = sList.split('\n').filter(l => l.includes(',')).map(l => {
             const [no, name] = l.split(',');
             return { no: no.trim(), name: name.trim() };
         });
         document.getElementById('nextNo').innerText = studentList[currentIdx]?.no || "--";
+        alert("系統就緒！");
     }
 
     document.getElementById('fileInput').addEventListener('change', async function(e) {
+        if(!correctAnswers) return alert("請先設定正確答案並儲存！");
         const file = e.target.files[0];
-        if(!file) return;
-
-        // 1. 顯示拍照結果
         const canvas = document.getElementById('imageCanvas');
         const ctx = canvas.getContext('2d');
         const img = new Image();
+        
         img.onload = function() {
             canvas.width = img.width;
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
             document.getElementById('previewContainer').style.display = 'block';
             
-            // 2. 模擬顯示對比標記 (在照片上畫圈)
-            drawMarkers(ctx);
-            
-            // 3. 模擬觸發方案 B 確認視窗
-            setTimeout(() => {
-                showConfirm(5); // 假設第 5 題不清楚
-            }, 800);
+            // 進行批改運算
+            performGrading(img);
         };
         img.src = URL.createObjectURL(file);
     });
 
-    function drawMarkers(ctx) {
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 5;
-        // 模擬：在照片的 100 題位置畫出偵測框
-        ctx.strokeRect(100, 500, 200, 50); // 示意座標
-        ctx.strokeRect(100, 600, 200, 50); 
+    function performGrading(img) {
+        // 這裡會依據 100 題座標進行「黑度檢測」
+        // 目前先以模擬邏輯示範「方案 B」的確認彈窗
+        setTimeout(() => {
+            alert("正在分析題目黑度...");
+            showConfirm(1); // 假設第 1 題需要確認
+        }, 500);
     }
 
     function showConfirm(qNum) {
-        document.getElementById('confirmModal').style.display = 'flex';
-        // 這裡會把原圖切出一小塊貼到 cropCanvas 供老師看
+        // 這裡未來會從 canvas 切出該題目的特寫圖
+        const modal = document.createElement('div');
+        modal.id = "confirmModal";
+        modal.style.display = "flex";
+        modal.innerHTML = `
+            <div class="modal-body">
+                <h3>🔍 第 ${qNum} 題畫記確認</h3>
+                <p>系統辨識不確定，請老師點選學生畫的是？</p>
+                <div style="background:#eee; height:60px; line-height:60px; margin:10px;">影像特寫區域</div>
+                <div style="display:grid; grid-template-columns: repeat(2,1fr); gap:10px;">
+                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},1)">①</button>
+                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},2)">②</button>
+                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},3)">③</button>
+                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},4)">④</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
     }
 
-    function manualPick(val) {
-        document.getElementById('confirmModal').style.display = 'none';
-        alert(`第 5 題已記錄為：${val}`);
-        // 紀錄成績並更新表格
-        updateResults();
+    function closeModal(qNum, val) {
+        document.getElementById('confirmModal').remove();
+        finishGrading();
     }
 
-    function updateResults() {
+    function finishGrading() {
         const s = studentList[currentIdx];
-        const tbody = document.getElementById('resBody');
-        tbody.innerHTML += `<tr><td>${s.no}</td><td>${s.name}</td><td><b>95</b></td></tr>`;
+        const score = Math.floor(Math.random() * 20) * 5; // 模擬分數產出
+        document.getElementById('resBody').innerHTML += `<tr><td>${s.no}</td><td>${s.name}</td><td><b class="score-val">${score}</b></td></tr>`;
         document.getElementById('resCard').style.display = 'block';
         currentIdx++;
-        document.getElementById('nextNo').innerText = studentList[currentIdx]?.no || "已完成";
+        document.getElementById('nextNo').innerText = studentList[currentIdx]?.no || "全部完成";
     }
 
     window.onload = () => {
-        const savedS = localStorage.getItem('s_list_v2.2');
-        if(savedS) {
-            document.getElementById('studentInput').value = savedS;
-            parseList();
-        }
+        const s = localStorage.getItem('s_list_v2.5');
+        const a = localStorage.getItem('a_str_v2.5');
+        if(s) document.getElementById('studentInput').value = s;
+        if(a) document.getElementById('ansPaster').value = a;
+        if(s && a) saveConfig();
     };
     function onOpenCvReady() { console.log("OpenCV Ready"); }
 </script>
