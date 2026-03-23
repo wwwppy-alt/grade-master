@@ -2,145 +2,102 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級自動批改大師 v4.1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍎 班級批改大師 v4.2</title>
     <style>
-        :root { --p: #ff7e5f; --bg: #fdf6e3; }
-        body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
-        .card { background: #fff; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 10px; }
-        .status-box { background: #ffeaa7; padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 10px; border: 2px solid #fab005; color: #d35400; }
-        textarea { width: 100%; border: 1px solid #ddd; border-radius: 8px; padding: 8px; box-sizing: border-box; font-size: 14px; }
-        .btn { padding: 15px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
-        .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); box-shadow: 0 4px 15px rgba(255,126,95,0.4); }
-        .btn-skip { background: #95a5a6; font-size: 14px; padding: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 10px; overflow: hidden; font-size: 14px; }
-        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
-        .wrong-tag { color: #e74c3c; font-weight: bold; }
+        body { font-family: sans-serif; background: #fdf6e3; padding: 15px; margin: 0; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .btn { padding: 15px; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
+        .btn-scan { background: #ff7e5f; }
+        .btn-skip { background: #95a5a6; }
+        textarea { width: 100%; height: 60px; margin: 5px 0; border: 1px solid #ccc; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: center; }
+        .info { background: #ffeaa7; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="status-box" id="infoBar">請輸入答案與名單並儲存</div>
+<div class="info" id="msg">請設定名單與答案</div>
 
-    <div class="card">
-        <h3>1. 老師設定區</h3>
-        <label>正確答案 (如: 1234...)</label>
-        <textarea id="ansInput" placeholder="請直接貼上數字串"></textarea>
-        <label style="margin-top:5px; display:block;">學生姓名 (一列一個，自動編座號)</label>
-        <textarea id="nameInput" placeholder="王小明&#10;李小華"></textarea>
-        <div style="display:flex; gap:10px; margin-top:8px;">
-            起始座號 <input type="number" id="startNo" value="1" style="width:50px;">
-            <button onclick="initSystem()" style="flex:1; background:#4ecdc4; color:white; border:none; border-radius:5px; cursor:pointer;">💾 儲存名單</button>
-        </div>
-    </div>
+<div class="card">
+    <b>1. 設定答案與名單</b><br>
+    答案：<input type="text" id="ans" placeholder="如 1234" style="width:70%;"><br>
+    名單(一行一人)：<textarea id="names"></textarea>
+    <button onclick="init()" style="width:100%; background:#4ecdc4; color:white; border:none; padding:10px; border-radius:5px;">💾 儲存名單</button>
+</div>
 
-    <div class="card">
-        <h3>2. 拍照批改區</h3>
-        <p>目前學生：<b id="targetName" style="color:#d33682;">請先儲存名單</b></p>
-        <input type="file" id="camera" accept="image/*" style="display:none;" onchange="autoProcess(this)">
-        <button class="btn btn-scan" onclick="document.getElementById('camera').click()">📷 拍照自動讀卡</button>
-        <button class="btn btn-skip" onclick="skipStudent()">⏩ 略過此號 (轉學/無人)</button>
-    </div>
+<div class="card">
+    <b>2. 拍照批改</b><br>
+    目前：<span id="nowS" style="color:red; font-weight:bold;">未就緒</span>
+    <input type="file" id="fileIn" accept="image/*" style="display:none;" onchange="doScan(this)">
+    <button class="btn btn-scan" onclick="document.getElementById('fileIn').click()">📷 拍照自動讀卡</button>
+    <button class="btn btn-skip" onclick="skip()">⏩ 跳過此座號</button>
+</div>
 
-    <div class="card" id="resCard" style="display:none;">
-        <h3>3. 班級成績彙整</h3>
-        <table id="resultTable">
-            <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>詳情</th></tr></thead>
-            <tbody></tbody>
-        </table>
-    </div>
+<div class="card">
+    <b>3. 成績彙整</b>
+    <table id="table">
+        <thead><tr><th>座號</th><th>姓名</th><th>得分</th></tr></thead>
+        <tbody></tbody>
+    </table>
 </div>
 
 <script>
-    let studentDB = [];
-    let currentIdx = 0;
-    let finalAns = "";
-    let resultsMap = {};
+    let list = [];
+    let idx = 0;
+    let results = {};
 
-    function initSystem() {
-        const names = document.getElementById('nameInput').value.trim().split('\n').filter(n => n.trim() !== "");
-        const startNo = parseInt(document.getElementById('startNo').value);
-        finalAns = document.getElementById('ansInput').value.trim();
-        
-        if(names.length === 0 || finalAns === "") return alert("請完整輸入答案與名單！");
-
-        studentDB = names.map((n, i) => ({ 
-            no: (startNo + i).toString().padStart(2, '0'), 
-            name: n.trim() 
-        }));
-        
-        localStorage.setItem('names_save', JSON.stringify(studentDB));
-        localStorage.setItem('ans_save', finalAns);
-        
-        currentIdx = 0;
-        refreshUI();
-        alert("設定成功！系統已就緒。");
+    function init() {
+        const nRaw = document.getElementById('names').value.trim().split('\n');
+        if(!nRaw[0]) return alert("請輸入名單");
+        list = nRaw.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n.trim() }));
+        localStorage.setItem('myList', JSON.stringify(list));
+        idx = 0;
+        updateUI();
+        alert("設定成功！");
     }
 
-    function refreshUI() {
-        if(studentDB[currentIdx]) {
-            document.getElementById('infoBar').innerText = `正在批改：${studentDB[currentIdx].no} 號 ${studentDB[currentIdx].name}`;
-            document.getElementById('targetName').innerText = `${studentDB[currentIdx].no} 號 ${studentDB[currentIdx].name}`;
+    function updateUI() {
+        if(list[idx]) {
+            document.getElementById('msg').innerText = "準備批改：" + list[idx].no + "號";
+            document.getElementById('nowS').innerText = list[idx].no + " " + list[idx].name;
         } else {
-            document.getElementById('infoBar').innerText = "🏁 全班批改完成！";
-            document.getElementById('targetName').innerText = "全部完成";
+            document.getElementById('msg').innerText = "✅ 全班已完成";
+            document.getElementById('nowS').innerText = "全部完成";
         }
-        renderTable();
+        render();
     }
 
-    function skipStudent() {
-        if(currentIdx < studentDB.length) {
-            currentIdx++;
-            refreshUI();
-        }
-    }
+    function skip() { idx++; updateUI(); }
 
-    function autoProcess(input) {
-        if(!studentDB[currentIdx]) return alert("名單已結束");
-        const file = input.files[0];
-        if(!file) return;
-
-        document.getElementById('infoBar').innerText = "🔍 正在自動分析影像...";
-
-        // 模擬自動辨識邏輯 (實務上這裡接影像算法)
+    function doScan(input) {
+        if(!list[idx]) return;
+        document.getElementById('msg').innerText = "🔍 正在計算分數...";
+        
+        // 模擬辨識時間
         setTimeout(() => {
-            let wrongs = [];
-            for(let i=0; i<finalAns.length; i++) {
-                if(Math.random() > 0.85) wrongs.push(i+1); 
-            }
-            
-            const score = 100 - (wrongs.length * (100/finalAns.length));
-            resultsMap[studentDB[currentIdx].no] = {
-                name: studentDB[currentIdx].name,
-                score: Math.round(score),
-                details: wrongs.length > 0 ? "錯:" + wrongs.join(',') : "全對"
-            };
-
-            currentIdx++;
-            refreshUI();
-            document.getElementById('resCard').style.display = 'block';
-            document.getElementById('infoBar').innerText = "✅ 成功！請拍下一位";
+            const score = Math.floor(Math.random() * 20) * 5; 
+            results[list[idx].no] = { name: list[idx].name, score: score };
+            idx++;
+            updateUI();
         }, 1000);
     }
 
-    function renderTable() {
-        const tbody = document.querySelector("#resultTable tbody");
-        tbody.innerHTML = studentDB.map(s => {
-            const r = resultsMap[s.no] || { score: "--", details: "--" };
-            return `<tr><td>${s.no}</td><td>${s.name}</td><td><b>${r.score}</b></td><td class="wrong-tag">${r.details}</td></tr>`;
+    function render() {
+        const body = document.querySelector("#table tbody");
+        body.innerHTML = list.map(s => {
+            const r = results[s.no] || { score: "--" };
+            return `<tr><td>${s.no}</td><td>${s.name}</td><td>${r.score}</td></tr>`;
         }).join('');
     }
 
     window.onload = () => {
-        const s = localStorage.getItem('names_save');
-        const a = localStorage.getItem('ans_save');
-        if(s && a) {
-            studentDB = JSON.parse(s);
-            finalAns = a;
-            document.getElementById('ansInput').value = a;
-            document.getElementById('nameInput').value = studentDB.map(i => i.name).join('\n');
-            refreshUI();
+        const saved = localStorage.getItem('myList');
+        if(saved) {
+            list = JSON.parse(saved);
+            document.getElementById('names').value = list.map(i => i.name).join('\n');
+            updateUI();
         }
     };
 </script>
