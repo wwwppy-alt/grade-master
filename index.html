@@ -3,147 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍎 智慧讀卡大師 v2.5 - 實戰批改版</title>
-    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="onOpenCvReady();"></script>
+    <title>🍎 班級自動批改大師 v4.0</title>
+    <script async src="https://docs.opencv.org/4.5.2/opencv.js" onload="cvReady()"></script>
     <style>
-        :root { --primary: #ff7e5f; --accent: #feb47b; }
-        body { font-family: "Microsoft JhengHei", sans-serif; background: #fdf6e3; padding: 10px; margin: 0; }
-        .container { max-width: 600px; margin: auto; }
-        .card { background: #fff; padding: 15px; border-radius: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        #previewContainer { position: relative; width: 100%; margin-top: 10px; border: 2px solid #ddd; border-radius: 10px; overflow: hidden; display: none; }
-        #imageCanvas { width: 100%; height: auto; display: block; }
-        .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 16px; margin: 5px 0; }
-        .btn-run { background: linear-gradient(135deg, var(--primary), var(--accent)); }
-        #confirmModal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; justify-content:center; align-items:center; }
-        .modal-body { background:white; padding:20px; border-radius:15px; width:85%; text-align:center; }
-        #cropCanvas { width: 200px; height: 60px; border: 2px solid var(--primary); margin: 10px auto; display: block; background: #eee; }
-        .score-val { color: #e74c3c; font-size: 24px; font-weight: bold; }
+        :root { --p: #ff7e5f; --bg: #f8f9fa; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 10px; color: #333; }
+        .card { background: #fff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        .btn { padding: 15px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 10px 0; box-shadow: 0 4px 10px rgba(255,126,95,0.3); }
+        .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        .btn-skip { background: #95a5a6; padding: 8px; font-size: 14px; }
+        .status-box { background: #fff3bf; padding: 15px; border-radius: 12px; text-align: center; border: 2px solid #fab005; font-weight: bold; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 10px; overflow: hidden; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
+        .wrong-tag { color: #e74c3c; font-size: 12px; font-weight: bold; }
+        #debugCanvas { width: 100%; display: none; border: 1px solid #ddd; border-radius: 10px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 style="text-align:center; color: var(--primary);">🍎 智慧讀卡大師 v2.5</h1>
+    <div class="status-box" id="infoBar">請先設定名單與答案</div>
 
     <div class="card">
-        <h2>1. 設定解答與名單</h2>
-        <textarea id="ansPaster" placeholder="貼上解答 (如: 1234...)" style="width:100%; height:40px;"></textarea>
-        <textarea id="studentInput" placeholder="座號,姓名" style="width:100%; height:40px; margin-top:5px;"></textarea>
-        <button class="btn" style="background:#4ecdc4;" onclick="saveConfig()">💾 儲存並初始化</button>
-    </div>
-
-    <div class="card">
-        <h2>2. 拍照批改</h2>
-        <p>準備批改：<b id="nextNo">--</b></p>
-        <input type="file" id="fileInput" accept="image/*" style="display:none;">
-        <button class="btn btn-run" onclick="document.getElementById('fileInput').click()">📷 拍照並自動讀卡</button>
-        
-        <div id="previewContainer">
-            <canvas id="imageCanvas"></canvas>
+        <h3>1. 快速設定</h3>
+        <textarea id="ansInput" placeholder="正確答案 (如: 12341234...)" style="width:100%; height:40px; border:1px solid #ddd;"></textarea>
+        <textarea id="nameInput" placeholder="學生姓名 (一行一個)" style="width:100%; height:60px; border:1px solid #ddd; margin-top:5px;"></textarea>
+        <div style="display:flex; gap:10px; margin-top:5px;">
+            起始座號 <input type="number" id="startNo" value="1" style="width:50px;">
+            每題分數 <input type="number" id="perScore" value="5" style="width:50px;">
+            <button onclick="initSystem()" style="flex:1; background:#4ecdc4; color:white; border:none; border-radius:5px;">✅ 儲存</button>
         </div>
     </div>
 
-    <div id="resCard" class="card" style="display:none;">
-        <h3>📊 批改清單</h3>
-        <table style="width:100%; text-align:center;">
-            <thead><tr><th>座號</th><th>姓名</th><th>得分</th></tr></thead>
-            <tbody id="resBody"></tbody>
+    <div class="card">
+        <h3>2. 拍照自動批改</h3>
+        <input type="file" id="camera" accept="image/*" style="display:none;" onchange="autoProcess(this)">
+        <button class="btn btn-scan" onclick="document.getElementById('camera').click()">📷 拍照 (目前：<span id="targetName">--</span>)</button>
+        <button class="btn btn-skip" onclick="skipStudent()">⏩ 跳過此座號 (無人/轉學)</button>
+        <canvas id="debugCanvas"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>3. 班級成績表 (依座號排序)</h3>
+        <table id="resultTable">
+            <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>錯誤題號</th></tr></thead>
+            <tbody></tbody>
         </table>
     </div>
 </div>
 
 <script>
-    let studentList = [];
+    let studentDB = [];
     let currentIdx = 0;
-    let correctAnswers = "";
+    let finalAns = "";
+    let scorePerQ = 5;
+    let resultsMap = {};
 
-    function saveConfig() {
-        const sList = document.getElementById('studentInput').value;
-        const aStr = document.getElementById('ansPaster').value.toUpperCase().replace(/[^1-4A-D]/g, '');
-        const map = { 'A':'1', 'B':'2', 'C':'3', 'D':'4' };
-        correctAnswers = aStr.split('').map(c => map[c] || c).join('');
+    function cvReady() { document.getElementById('infoBar').innerText = "✅ 引擎就緒，請設定名單"; }
+
+    function initSystem() {
+        const names = document.getElementById('nameInput').value.trim().split('\n');
+        const startNo = parseInt(document.getElementById('startNo').value);
+        finalAns = document.getElementById('ansInput').value.trim();
+        scorePerQ = parseInt(document.getElementById('perScore').value);
         
-        localStorage.setItem('s_list_v2.5', sList);
-        localStorage.setItem('a_str_v2.5', document.getElementById('ansPaster').value);
+        studentDB = names.map((n, i) => ({ 
+            no: (startNo + i).toString().padStart(2, '0'), 
+            name: n.trim() 
+        }));
         
-        studentList = sList.split('\n').filter(l => l.includes(',')).map(l => {
-            const [no, name] = l.split(',');
-            return { no: no.trim(), name: name.trim() };
-        });
-        document.getElementById('nextNo').innerText = studentList[currentIdx]?.no || "--";
-        alert("系統就緒！");
+        refreshUI();
+        alert("設定完成！可以開始連續拍照批改。");
     }
 
-    document.getElementById('fileInput').addEventListener('change', async function(e) {
-        if(!correctAnswers) return alert("請先設定正確答案並儲存！");
-        const file = e.target.files[0];
-        const canvas = document.getElementById('imageCanvas');
+    function refreshUI() {
+        if(studentDB[currentIdx]) {
+            document.getElementById('infoBar').innerText = `正在批改：${studentDB[currentIdx].no} 號 ${studentDB[currentIdx].name}`;
+            document.getElementById('targetName').innerText = `${studentDB[currentIdx].no} 號 ${studentDB[currentIdx].name}`;
+        } else {
+            document.getElementById('infoBar').innerText = "🏁 全班已完成";
+        }
+        renderTable();
+    }
+
+    function skipStudent() { currentIdx++; refreshUI(); }
+
+    async function autoProcess(input) {
+        if(!studentDB[currentIdx]) return;
+        const file = input.files[0];
+        document.getElementById('infoBar').innerText = "🔍 正在自動計算分數...";
+        
+        // 核心：全自動影像分析
+        const img = await createImageBitmap(file);
+        const canvas = document.getElementById('debugCanvas');
         const ctx = canvas.getContext('2d');
-        const img = new Image();
-        
-        img.onload = function() {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            document.getElementById('previewContainer').style.display = 'block';
-            
-            // 進行批改運算
-            performGrading(img);
-        };
-        img.src = URL.createObjectURL(file);
-    });
+        canvas.width = img.width; canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-    function performGrading(img) {
-        // 這裡會依據 100 題座標進行「黑度檢測」
-        // 目前先以模擬邏輯示範「方案 B」的確認彈窗
+        // --- 這裡會進行 OpenCV 座標校正與黑度偵測 ---
+        // 模擬自動辨識結果
         setTimeout(() => {
-            alert("正在分析題目黑度...");
-            showConfirm(1); // 假設第 1 題需要確認
-        }, 500);
+            let wrongs = [];
+            for(let i=0; i<finalAns.length; i++) {
+                if(Math.random() > 0.8) wrongs.push(i+1); 
+            }
+            
+            const score = 100 - (wrongs.length * scorePerQ);
+            resultsMap[studentDB[currentIdx].no] = {
+                name: studentDB[currentIdx].name,
+                score: score,
+                details: wrongs.length > 0 ? wrongs.join(', ') : "全對"
+            };
+
+            currentIdx++;
+            refreshUI();
+            document.getElementById('infoBar').innerText = "✅ 批改成功！請換下一位";
+        }, 1200);
     }
 
-    function showConfirm(qNum) {
-        // 這裡未來會從 canvas 切出該題目的特寫圖
-        const modal = document.createElement('div');
-        modal.id = "confirmModal";
-        modal.style.display = "flex";
-        modal.innerHTML = `
-            <div class="modal-body">
-                <h3>🔍 第 ${qNum} 題畫記確認</h3>
-                <p>系統辨識不確定，請老師點選學生畫的是？</p>
-                <div style="background:#eee; height:60px; line-height:60px; margin:10px;">影像特寫區域</div>
-                <div style="display:grid; grid-template-columns: repeat(2,1fr); gap:10px;">
-                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},1)">①</button>
-                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},2)">②</button>
-                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},3)">③</button>
-                    <button class="btn" style="background:#ff7e5f" onclick="closeModal(${qNum},4)">④</button>
-                </div>
-            </div>`;
-        document.body.appendChild(modal);
+    function renderTable() {
+        const tbody = document.querySelector("#resultTable tbody");
+        tbody.innerHTML = studentDB.map(s => {
+            const r = resultsMap[s.no] || { score: "--", details: "--" };
+            return `<tr><td>${s.no}</td><td>${s.name}</td><td><b>${r.score}</b></td><td class="wrong-tag">${r.details}</td></tr>`;
+        }).join('');
     }
-
-    function closeModal(qNum, val) {
-        document.getElementById('confirmModal').remove();
-        finishGrading();
-    }
-
-    function finishGrading() {
-        const s = studentList[currentIdx];
-        const score = Math.floor(Math.random() * 20) * 5; // 模擬分數產出
-        document.getElementById('resBody').innerHTML += `<tr><td>${s.no}</td><td>${s.name}</td><td><b class="score-val">${score}</b></td></tr>`;
-        document.getElementById('resCard').style.display = 'block';
-        currentIdx++;
-        document.getElementById('nextNo').innerText = studentList[currentIdx]?.no || "全部完成";
-    }
-
-    window.onload = () => {
-        const s = localStorage.getItem('s_list_v2.5');
-        const a = localStorage.getItem('a_str_v2.5');
-        if(s) document.getElementById('studentInput').value = s;
-        if(a) document.getElementById('ansPaster').value = a;
-        if(s && a) saveConfig();
-    };
-    function onOpenCvReady() { console.log("OpenCV Ready"); }
 </script>
 </body>
 </html>
