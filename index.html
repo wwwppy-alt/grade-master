@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v8.2 - 穩定傳輸版</title>
+    <title>🍎 班級批改大師 v8.3 - 年度記憶版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -14,7 +14,6 @@
         .ans-chunk span { color: #ff7e5f; font-size: 11px; }
         .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
         .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
-        
         #canvasWrapper { position: relative; display: none; margin-top: 10px; border: 2px solid var(--p); border-radius: 10px; overflow: hidden; touch-action: none; }
         #canvasPreview { width: 100%; display: block; }
         #dragBox { position: absolute; border: 3px dashed red; cursor: move; background: rgba(255, 0, 0, 0.1); box-sizing: border-box; }
@@ -25,20 +24,26 @@
 </head>
 <body>
 
-<div class="status-box" id="infoBar">請由電腦匯出設定檔或手動設定</div>
+<div class="status-box" id="infoBar">請載入或設定年份資料</div>
 
 <div class="card">
-    <b>1. ☁️ 跨裝置同步 (最穩定方案)</b>
-    <div style="display:flex; gap:10px; margin:10px 0;">
-        <button onclick="exportSyncFile()" style="flex:1; background:#3498db; color:white; border:none; padding:10px; border-radius:5px; font-size:12px;">💻 電腦點擊：匯出設定檔</button>
-        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; font-size:12px;">📱 手機點擊：匯入設定檔</button>
+    <b>1. 📅 年度存檔與同步</b>
+    <div style="display:flex; gap:5px; margin:10px 0;">
+        <select id="saveSelect" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd;"></select>
+        <button onclick="loadLocalData()" style="background:#3498db; color:white; border:none; padding:8px 12px; border-radius:5px;">載入</button>
+        <button onclick="deleteLocalData()" style="background:#e74c3c; color:white; border:none; padding:8px 12px; border-radius:5px;">刪除</button>
+    </div>
+    <div style="display:flex; gap:5px; margin-bottom:10px;">
+        <button onclick="exportSyncFile()" style="flex:1; background:#9b59b6; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 電腦匯出檔</button>
+        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:var(--success); color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">📱 手機匯入檔</button>
         <input type="file" id="importFile" style="display:none;" onchange="importSyncFile(this)">
     </div>
     <hr>
-    <input type="text" id="yearName" placeholder="考卷名稱 (如：115學測)" style="width:100%; padding:10px; box-sizing:border-box; margin:10px 0; border:1px solid #ddd;">
-    <textarea id="ansInput" oninput="drawGrid()" placeholder="貼上正確答案字串..."></textarea>
+    <input type="text" id="yearName" placeholder="本份考卷名稱 (如：115學測)" style="width:100%; padding:10px; box-sizing:border-box; margin:10px 0; border:1px solid #ddd;">
+    <textarea id="ansInput" oninput="drawGrid()" placeholder="正確答案字串..."></textarea>
     <div id="ansGrid" class="ans-group"></div>
-    <textarea id="nameInput" placeholder="輸入名單(一列一個)"></textarea>
+    <textarea id="nameInput" placeholder="輸入名單(一列一人)"></textarea>
+    <button onclick="saveLocalData()" style="width:100%; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; margin-top:10px;">💾 儲存此年份至選單</button>
 </div>
 
 <div class="card">
@@ -51,7 +56,7 @@
     <div id="canvasWrapper">
         <canvas id="canvasPreview"></canvas>
         <div id="dragBox"><div class="resizer"></div></div>
-        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 對準了，開始批改</button>
+        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 確認對準，開始辨識</button>
     </div>
 </div>
 
@@ -71,7 +76,54 @@
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
-    // --- 關鍵修正：跨裝置穩定同步 ---
+    // --- 關鍵修正：修復年度存檔選單 ---
+    function saveLocalData() {
+        const year = document.getElementById('yearName').value.trim();
+        if(!year) return alert("請輸入考卷名稱！");
+        const data = {
+            ans: document.getElementById('ansInput').value.trim(),
+            names: document.getElementById('nameInput').value.trim(),
+            year: year
+        };
+        localStorage.setItem('GM_SAVE_' + year, JSON.stringify(data));
+        updateSaveSelect();
+        alert("『" + year + "』已成功存入選單！");
+        saveConfig();
+    }
+
+    function updateSaveSelect() {
+        const sel = document.getElementById('saveSelect');
+        sel.innerHTML = '<option value="">--- 選擇存檔 ---</option>';
+        for(let i=0; i<localStorage.length; i++){
+            const key = localStorage.key(i);
+            if(key.startsWith('GM_SAVE_')){
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.text = key.replace('GM_SAVE_', '');
+                sel.appendChild(opt);
+            }
+        }
+    }
+
+    function loadLocalData() {
+        const key = document.getElementById('saveSelect').value;
+        if(!key) return;
+        const data = JSON.parse(localStorage.getItem(key));
+        document.getElementById('yearName').value = data.year;
+        document.getElementById('ansInput').value = data.ans;
+        document.getElementById('nameInput').value = data.names;
+        drawGrid(); saveConfig();
+        alert("資料載入成功！");
+    }
+
+    function deleteLocalData() {
+        const key = document.getElementById('saveSelect').value;
+        if(!key || !confirm("確定要刪除此存檔嗎？")) return;
+        localStorage.removeItem(key);
+        updateSaveSelect();
+    }
+
+    // --- 跨裝置傳輸邏輯 ---
     function exportSyncFile() {
         const data = {
             ans: document.getElementById('ansInput').value.trim(),
@@ -81,9 +133,8 @@
         const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `批改大師設定_${data.year || '未命名'}.json`;
+        a.download = `批改設定_${data.year}.json`;
         a.click();
-        alert("設定檔已下載！請將此檔案透過 LINE 傳給自己，再用手機下載並點擊「匯入設定檔」。");
     }
 
     function importSyncFile(input) {
@@ -94,13 +145,12 @@
             document.getElementById('ansInput').value = data.ans;
             document.getElementById('nameInput').value = data.names;
             document.getElementById('yearName').value = data.year;
-            drawGrid(); saveConfig();
-            alert("匯入成功！名單與答案已載入。");
+            drawGrid(); saveLocalData(); // 匯入後自動存入本地選單
         };
         reader.readAsText(file);
     }
 
-    // 保留原本辨識與 5 題一隔邏輯
+    // 原有 5 題一隔與自動座號保留
     function drawGrid() {
         const val = document.getElementById('ansInput').value.trim();
         const grid = document.getElementById('ansGrid');
@@ -145,11 +195,12 @@
 
     function confirmGrading() {
         let wrongs = [];
+        // 模擬辨識邏輯
         for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.9) wrongs.push(i+1); }
         const perQ = 100 / ansStr.length;
         const score = Math.round(100 - (wrongs.length * perQ));
         
-        if(confirm(`批改完成！分數：${score}分。是否確認存檔？`)) {
+        if(confirm(`辨識完成！分數：${score}分。是否確認並進入下一位？`)) {
             results[db[cur].no] = { name: db[cur].name, score: score, errs: wrongs.join(',') };
             wrapper.style.display = 'none';
             document.getElementById('historyCard').style.display = 'block';
@@ -157,7 +208,7 @@
         }
     }
 
-    // 拖曳邏輯保留
+    // 拖曳縮放邏輯
     dragBox.addEventListener('touchstart', (e) => {
         if(e.target.className === 'resizer') isResizing = true;
         else isDragging = true;
@@ -193,6 +244,8 @@
         a.href = URL.createObjectURL(blob);
         a.download = `成績報表.csv`; a.click();
     }
+
+    window.onload = () => { updateSaveSelect(); };
 </script>
 </body>
 </html>
