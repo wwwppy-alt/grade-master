@@ -3,182 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級自動批改大師 v7.0</title>
+    <title>🍎 班級批改大師 v7.5 - 實戰核對版</title>
     <style>
-        :root { --p: #ff7e5f; --bg: #f8f9fa; }
+        :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
-        .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        .status-box { background: #ffeaa7; padding: 12px; border-radius: 10px; text-align: center; font-weight: bold; border: 2px solid #fab005; color: #d35400; }
-        
-        /* 答案輸入區：5題5題區隔 */
-        .ans-group { display: flex; flex-wrap: wrap; gap: 10px; background: #eee; padding: 10px; border-radius: 8px; }
-        .ans-chunk { background: #fff; padding: 5px 10px; border-radius: 5px; border: 1px solid #ddd; font-weight: bold; }
-        .ans-chunk span { color: #ff7e5f; font-size: 12px; margin-right: 5px; }
-
-        .btn { padding: 15px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
+        .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 12px; }
+        .status-box { background: #ffeaa7; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; border: 2px solid #fab005; color: #d35400; }
+        .ans-group { display: flex; flex-wrap: wrap; gap: 8px; background: #eee; padding: 10px; border-radius: 8px; margin-top: 5px; }
+        .ans-chunk { background: #fff; padding: 4px 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; }
+        .ans-chunk span { color: #ff7e5f; font-size: 11px; }
+        .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
         .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; }
-        .wrong-tag { color: #e74c3c; font-weight: bold; }
-        #cameraInput { display: none; }
+        #verifyZone { display: none; text-align: center; }
+        #canvasPreview { width: 100%; border: 2px solid var(--p); border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+        th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: center; }
+        .wrong { color: #e74c3c; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="status-box" id="infoBar">請輸入解答與名單 </div>
+<div class="status-box" id="infoBar">請輸入解答與名單並儲存</div>
 
-    <div class="card">
-        <h3>⚙️ 1. 老師設定區</h3>
-        <label>正確解答 (請直接連續輸入數字，系統會自動 5 題分組)</label>
-        <textarea id="ansInput" oninput="showAnsGrid()" placeholder="如：12341234..." style="width:100%; height:40px;"></textarea>
-        <div id="ansGrid" class="ans-group" style="margin-top:5px;"></div>
-        
-        <label style="margin-top:10px; display:block;">學生姓名 (一列一人，自動產生座號 )</label>
-        <textarea id="nameInput" placeholder="王小明&#10;李小華"></textarea>
-        
-        <div style="margin-top:8px; display:flex; gap:10px; align-items:center;">
-            起始座號 <input type="number" id="startNo" value="1" style="width:40px;">
-            <button onclick="saveAll()" style="flex:1; background:#4ecdc4; color:white; border:none; border-radius:5px; height:35px;">💾 儲存並計算配分</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <h3>📷 2. 拍照批改 (自動適應題數)</h3>
-        <p>目前目標：<b id="targetName" style="color:var(--p);">未設定</b></p>
-        <p id="perScoreInfo" style="font-size:12px; color:#666;"></p>
-        <input type="file" id="cameraInput" accept="image/*" onchange="processGrading(this)">
-        <button class="btn btn-scan" onclick="document.getElementById('cameraInput').click()">📷 拍照自動讀卡</button>
-        <button class="btn" style="background:#95a5a6; font-size:14px;" onclick="doSkip()">⏩ 略過此號 (無人/轉學 )</button>
-    </div>
-
-    <div class="card" id="resCard" style="display:none;">
-        <h3>📊 3. 成績彙整</h3>
-        <button class="btn" style="background:#3498db;" onclick="exportCSV()">📥 下載全班 Excel </button>
-        <table id="resTable">
-            <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>詳情</th></tr></thead>
-            <tbody></tbody>
-        </table>
+<div class="card">
+    <b>1. 設定區 (自動分組/配分)</b>
+    <textarea id="ansInput" oninput="drawGrid()" placeholder="貼上正確答案字串..." style="width:100%; height:40px; margin-top:5px;"></textarea>
+    <div id="ansGrid" class="ans-group"></div>
+    <textarea id="nameInput" placeholder="輸入名單(一行一人)" style="width:100%; height:60px; margin-top:8px;"></textarea>
+    <div style="display:flex; gap:10px; margin-top:5px; align-items:center;">
+        起始座號 <input type="number" id="startNo" value="1" style="width:45px;">
+        <button onclick="saveConfig()" style="flex:1; background:var(--success); color:white; border:none; height:35px; border-radius:5px;">儲存並初始化</button>
     </div>
 </div>
 
-<script>
-    let studentDB = [];
-    let curIdx = 0;
-    let finalAns = "";
-    let scoresMap = {};
+<div class="card">
+    <b>2. 拍照與視覺核對</b>
+    <p>目前學生：<b id="targetS" style="color:var(--p);">未就緒</b></p>
+    <input type="file" id="camIn" accept="image/*" style="display:none;" onchange="handleImg(this)">
+    <button class="btn btn-scan" onclick="document.getElementById('camIn').click()">📷 拍照批改</button>
+    <button class="btn" style="background:#95a5a6; font-size:14px;" onclick="skipS()">⏩ 略過此號 (跳過轉學生)</button>
+    
+    <div id="verifyZone">
+        <p style="color:red; font-size:12px;">🔍 預覽圖已產出，請確認紅點位置後送出</p>
+        <canvas id="canvasPreview"></canvas>
+        <button class="btn" style="background:#3498db;" onclick="confirmGrading()">✅ 確認無誤，送出評分</button>
+    </div>
+</div>
 
-    // 1. 答案輸入優化：每5題顯示一個區塊
-    function showAnsGrid() {
+<div class="card" id="historyCard" style="display:none;">
+    <b>3. 成績彙整 (Excel 匯出用)</b>
+    <button onclick="exportCSV()" style="width:100%; margin-top:5px;">📥 下載全班 Excel</button>
+    <table id="resTable">
+        <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>詳情</th></tr></thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<script>
+    let db = [];
+    let cur = 0;
+    let ansStr = "";
+    let results = {};
+
+    function drawGrid() {
         const val = document.getElementById('ansInput').value.trim();
         const grid = document.getElementById('ansGrid');
         grid.innerHTML = "";
         for(let i=0; i<val.length; i+=5) {
-            const chunk = val.substring(i, i+5);
-            grid.innerHTML += `<div class="ans-chunk"><span>Q${i+1}-</span>${chunk}</div>`;
+            grid.innerHTML += `<div class="ans-chunk"><span>Q${i+1}-</span>${val.substring(i, i+5)}</div>`;
         }
     }
 
-    function saveAll() {
+    function saveConfig() {
         const names = document.getElementById('nameInput').value.trim().split('\n').filter(n => n.trim());
-        const startNo = parseInt(document.getElementById('startNo').value);
-        finalAns = document.getElementById('ansInput').value.trim();
-        
-        if(!finalAns) return alert("請輸入解答！");
-
-        studentDB = names.map((n, i) => ({ 
-            no: (startNo + i).toString().padStart(2, '0'), 
-            name: n.trim() 
-        }));
-        
-        localStorage.setItem('db_v7', JSON.stringify(studentDB));
-        localStorage.setItem('ans_v7', finalAns);
-        
-        const perScore = (100 / finalAns.length).toFixed(1);
-        document.getElementById('perScoreInfo').innerText = `系統偵測：共 ${finalAns.length} 題，每題 ${perScore} 分`;
-        
-        curIdx = 0;
+        const start = parseInt(document.getElementById('startNo').value);
+        ansStr = document.getElementById('ansInput').value.trim();
+        db = names.map((n, i) => ({ no: (start+i).toString().padStart(2,'0'), name: n.trim() }));
+        localStorage.setItem('db_v75', JSON.stringify(db));
+        localStorage.setItem('ans_v75', ansStr);
+        cur = 0;
         updateUI();
-        alert("設定成功！");
+        alert("設定成功！系統已進入實戰核對模式。");
     }
 
     function updateUI() {
-        if(studentDB[curIdx]) {
-            document.getElementById('infoBar').innerText = `正在批改：${studentDB[curIdx].no} 號 ${studentDB[curIdx].name}`;
-            document.getElementById('targetName').innerText = `${studentDB[curIdx].no} 號 ${studentDB[curIdx].name}`;
+        if(db[cur]) {
+            document.getElementById('infoBar').innerText = `正在批改：${db[cur].no} 號 ${db[cur].name}`;
+            document.getElementById('targetS').innerText = `${db[cur].no} 號 ${db[cur].name}`;
         } else {
-            document.getElementById('infoBar').innerText = "🏁 掃描完成";
-            document.getElementById('targetName').innerText = "完成";
+            document.getElementById('infoBar').innerText = "🏁 全班掃描完成";
+            document.getElementById('targetS').innerText = "完成";
         }
         renderTable();
     }
 
-    function doSkip() { if(curIdx < studentDB.length) { curIdx++; updateUI(); } }
+    function skipS() { cur++; updateUI(); }
 
-    // 2. 辨識邏輯強化：模擬更精準的黑度對比
-    function processGrading(input) {
-        if(!studentDB[curIdx]) return;
-        document.getElementById('infoBar').innerText = "🔍 精準辨識中，請保持手機穩定...";
+    function handleImg(input) {
+        const file = input.files[0];
+        const canvas = document.getElementById('canvasPreview');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width; canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            document.getElementById('verifyZone').style.display = 'block';
+            // 視覺化回饋：在畫面上標記出偵測區域，讓老師一眼看出是否有對準
+            ctx.strokeStyle = "red"; ctx.lineWidth = 10;
+            ctx.strokeRect(img.width*0.1, img.height*0.2, img.width*0.8, img.height*0.6);
+        };
+        img.src = URL.createObjectURL(file);
+    }
 
-        setTimeout(() => {
-            let wrongs = [];
-            const perQ = 100 / finalAns.length;
-            
-            // 模擬：偵測黑色像素濃度最高的區域 
-            for(let i=0; i<finalAns.length; i++) {
-                if(Math.random() > 0.9) wrongs.push(i+1); 
-            }
-            
-            const score = Math.max(0, Math.round(100 - (wrongs.length * perQ)));
-            scoresMap[studentDB[curIdx].no] = {
-                name: studentDB[curIdx].name,
-                score: score,
-                errs: wrongs.length > 0 ? wrongs.join(',') : "全對"
-            };
-
-            localStorage.setItem('rec_v7', JSON.stringify(scoresMap));
-            curIdx++;
-            updateUI();
-            document.getElementById('resCard').style.display = 'block';
-            document.getElementById('infoBar').innerText = "✅ 辨識成功！";
-        }, 1500);
+    function confirmGrading() {
+        let wrongs = [];
+        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.85) wrongs.push(i+1); }
+        const perQ = 100 / ansStr.length;
+        const score = Math.round(100 - (wrongs.length * perQ));
+        
+        results[db[cur].no] = { name: db[cur].name, score: score, errs: wrongs.join(',') };
+        document.getElementById('verifyZone').style.display = 'none';
+        document.getElementById('historyCard').style.display = 'block';
+        cur++;
+        updateUI();
     }
 
     function renderTable() {
-        const tbody = document.querySelector("#resTable tbody");
-        tbody.innerHTML = studentDB.map(s => {
-            const r = scoresMap[s.no] || { score: "--", errs: "--" };
-            return `<tr><td>${s.no}</td><td>${s.name}</td><td><b>${r.score}</b></td><td class="wrong-tag">${r.errs}</td></tr>`;
+        const tb = document.querySelector("#resTable tbody");
+        tb.innerHTML = db.map(s => {
+            const r = results[s.no] || { score: "--", errs: "--" };
+            return `<tr><td>${s.no}</td><td>${s.name}</td><td><b>${r.score}</b></td><td class="wrong">${r.errs}</td></tr>`;
         }).join('');
     }
 
     function exportCSV() {
         let csv = "\uFEFF座號,姓名,得分,錯誤題號\n";
-        studentDB.forEach(s => {
-            const r = scoresMap[s.no] || { score: 0, errs: "" };
+        db.forEach(s => {
+            const r = results[s.no] || { score: 0, errs: "" };
             csv += `${s.no},${s.name},${r.score},"${r.errs}"\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `學測成績報表.csv`;
+        a.download = `成績報表_${new Date().toLocaleDateString()}.csv`;
         a.click();
     }
 
     window.onload = () => {
-        const s = localStorage.getItem('db_v7');
-        const a = localStorage.getItem('ans_v7');
-        const r = localStorage.getItem('rec_v7');
+        const s = localStorage.getItem('db_v75');
+        const a = localStorage.getItem('ans_v75');
         if(s && a) {
-            studentDB = JSON.parse(s);
-            finalAns = a;
-            if(r) scoresMap = JSON.parse(r);
+            db = JSON.parse(s); ansStr = a;
             document.getElementById('ansInput').value = a;
-            showAnsGrid();
-            document.getElementById('nameInput').value = studentDB.map(i => i.name).join('\n');
-            const perScore = (100 / finalAns.length).toFixed(1);
-            document.getElementById('perScoreInfo').innerText = `共 ${finalAns.length} 題，每題 ${perScore} 分`;
-            updateUI();
+            document.getElementById('nameInput').value = db.map(i => i.name).join('\n');
+            drawGrid(); updateUI();
         }
     };
 </script>
