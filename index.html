@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v8.3 - 年度記憶版</title>
+    <title>🍎 班級批改大師 v8.4 - 多年份管理版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -14,55 +14,61 @@
         .ans-chunk span { color: #ff7e5f; font-size: 11px; }
         .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
         .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        
         #canvasWrapper { position: relative; display: none; margin-top: 10px; border: 2px solid var(--p); border-radius: 10px; overflow: hidden; touch-action: none; }
         #canvasPreview { width: 100%; display: block; }
         #dragBox { position: absolute; border: 3px dashed red; cursor: move; background: rgba(255, 0, 0, 0.1); box-sizing: border-box; }
         .resizer { width: 24px; height: 24px; background: red; position: absolute; right: 0; bottom: 0; border-radius: 50%; border: 3px solid white; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
         th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: center; }
+        .year-mgr { display: flex; gap: 5px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-<div class="status-box" id="infoBar">請載入或設定年份資料</div>
+<div class="status-box" id="infoBar">請由下方選單選擇考卷年份</div>
 
 <div class="card">
-    <b>1. 📅 年度存檔與同步</b>
-    <div style="display:flex; gap:5px; margin:10px 0;">
-        <select id="saveSelect" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd;"></select>
-        <button onclick="loadLocalData()" style="background:#3498db; color:white; border:none; padding:8px 12px; border-radius:5px;">載入</button>
-        <button onclick="deleteLocalData()" style="background:#e74c3c; color:white; border:none; padding:8px 12px; border-radius:5px;">刪除</button>
+    <b>1. 📂 多年份考卷管理系統</b>
+    <div class="year-mgr">
+        <select id="yearSelect" onchange="autoLoadYear()" style="flex:1; padding:10px; border-radius:5px; border:1px solid #ddd; font-weight:bold; color:var(--p);">
+            <option value="">--- 選擇已存考卷 ---</option>
+        </select>
+        <button onclick="deleteYear()" style="background:#e74c3c; color:white; border:none; padding:10px; border-radius:5px;">刪除</button>
     </div>
-    <div style="display:flex; gap:5px; margin-bottom:10px;">
-        <button onclick="exportSyncFile()" style="flex:1; background:#9b59b6; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 電腦匯出檔</button>
-        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:var(--success); color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">📱 手機匯入檔</button>
+    
+    <div id="editZone">
+        <input type="text" id="yearName" placeholder="考卷名稱 (如：114國語、115數學)" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:10px; border:1px solid #ddd;">
+        <textarea id="ansInput" oninput="drawGrid()" placeholder="正確答案字串 (如: 1234...)" style="width:100%; height:40px;"></textarea>
+        <div id="ansGrid" class="ans-group"></div>
+        <textarea id="nameInput" placeholder="輸入名單 (一行一人)" style="width:100%; height:60px; margin-top:8px;"></textarea>
+        <button onclick="addNewYear()" style="width:100%; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; margin-top:10px; font-weight:bold;">✨ 儲存/更新此年份設定</button>
+    </div>
+    
+    <div style="display:flex; gap:5px; margin-top:10px;">
+        <button onclick="exportSyncFile()" style="flex:1; background:#9b59b6; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 匯出所有年份(備份)</button>
+        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:#3498db; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">📱 匯入所有年份(同步)</button>
         <input type="file" id="importFile" style="display:none;" onchange="importSyncFile(this)">
     </div>
-    <hr>
-    <input type="text" id="yearName" placeholder="本份考卷名稱 (如：115學測)" style="width:100%; padding:10px; box-sizing:border-box; margin:10px 0; border:1px solid #ddd;">
-    <textarea id="ansInput" oninput="drawGrid()" placeholder="正確答案字串..."></textarea>
-    <div id="ansGrid" class="ans-group"></div>
-    <textarea id="nameInput" placeholder="輸入名單(一列一人)"></textarea>
-    <button onclick="saveLocalData()" style="width:100%; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; margin-top:10px;">💾 儲存此年份至選單</button>
 </div>
 
 <div class="card">
     <b>2. 📷 拍照/上傳 批改</b>
-    <p>目前學生：<b id="targetS" style="color:var(--p);">未就緒</b></p>
+    <p>正在批改：<b id="targetS" style="color:var(--p);">未選擇考卷</b></p>
     <input type="file" id="camIn" accept="image/*" style="display:none;" onchange="handleImg(this)">
-    <button class="btn btn-scan" onclick="document.getElementById('camIn').click()">📷 上傳/拍攝 答案卡</button>
-    <button class="btn" style="background:#95a5a6; font-size:14px;" onclick="skipS()">⏩ 略過此號 (跳過空號)</button>
+    <button class="btn btn-scan" onclick="checkReadyAndOpen()">📷 上傳/拍攝 答案卡</button>
+    <button class="btn" style="background:#95a5a6; font-size:14px;" onclick="skipS()">⏩ 略過此號</button>
     
     <div id="canvasWrapper">
         <canvas id="canvasPreview"></canvas>
         <div id="dragBox"><div class="resizer"></div></div>
-        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 確認對準，開始辨識</button>
+        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 對準了，確認批改</button>
     </div>
 </div>
 
 <div class="card" id="historyCard" style="display:none;">
     <b>3. 📊 成績彙整</b>
-    <button onclick="exportCSV()" class="btn" style="background:#4ecdc4; font-size:14px;">📥 下載全班 Excel</button>
+    <button onclick="exportCSV()" class="btn" style="background:#4ecdc4; font-size:14px;">📥 下載本份考卷成績 (Excel)</button>
     <table id="resTable">
         <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>詳情</th></tr></thead>
         <tbody></tbody>
@@ -76,81 +82,92 @@
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
-    // --- 關鍵修正：修復年度存檔選單 ---
-    function saveLocalData() {
-        const year = document.getElementById('yearName').value.trim();
-        if(!year) return alert("請輸入考卷名稱！");
+    // --- 核心改進：多個年份管理邏輯 ---
+    function addNewYear() {
+        const name = document.getElementById('yearName').value.trim();
+        if(!name) return alert("請輸入考卷名稱");
         const data = {
             ans: document.getElementById('ansInput').value.trim(),
-            names: document.getElementById('nameInput').value.trim(),
-            year: year
+            names: document.getElementById('nameInput').value.trim()
         };
-        localStorage.setItem('GM_SAVE_' + year, JSON.stringify(data));
-        updateSaveSelect();
-        alert("『" + year + "』已成功存入選單！");
-        saveConfig();
+        localStorage.setItem('YEAR_DATA_' + name, JSON.stringify(data));
+        refreshYearSelect();
+        alert("『" + name + "』設定已儲存至選單！");
     }
 
-    function updateSaveSelect() {
-        const sel = document.getElementById('saveSelect');
-        sel.innerHTML = '<option value="">--- 選擇存檔 ---</option>';
-        for(let i=0; i<localStorage.length; i++){
+    function refreshYearSelect() {
+        const sel = document.getElementById('yearSelect');
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">--- 選擇已存考卷 ---</option>';
+        for(let i=0; i<localStorage.length; i++) {
             const key = localStorage.key(i);
-            if(key.startsWith('GM_SAVE_')){
+            if(key.startsWith('YEAR_DATA_')) {
                 const opt = document.createElement('option');
-                opt.value = key;
-                opt.text = key.replace('GM_SAVE_', '');
+                opt.value = key; opt.text = key.replace('YEAR_DATA_', '');
                 sel.appendChild(opt);
             }
         }
+        sel.value = currentVal;
     }
 
-    function loadLocalData() {
-        const key = document.getElementById('saveSelect').value;
+    function autoLoadYear() {
+        const key = document.getElementById('yearSelect').value;
         if(!key) return;
         const data = JSON.parse(localStorage.getItem(key));
-        document.getElementById('yearName').value = data.year;
+        document.getElementById('yearName').value = key.replace('YEAR_DATA_', '');
         document.getElementById('ansInput').value = data.ans;
         document.getElementById('nameInput').value = data.names;
-        drawGrid(); saveConfig();
-        alert("資料載入成功！");
+        drawGrid(); 
+        // 立即初始化批改名單
+        const names = data.names.split('\n').filter(n => n.trim());
+        ansStr = data.ans;
+        db = names.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n.trim() }));
+        cur = 0; results = {}; updateUI();
+        document.getElementById('historyCard').style.display = 'none';
     }
 
-    function deleteLocalData() {
-        const key = document.getElementById('saveSelect').value;
-        if(!key || !confirm("確定要刪除此存檔嗎？")) return;
+    function deleteYear() {
+        const key = document.getElementById('yearSelect').value;
+        if(!key || !confirm("確定要刪除這份考卷設定嗎？")) return;
         localStorage.removeItem(key);
-        updateSaveSelect();
+        refreshYearSelect();
+        document.getElementById('yearName').value = "";
+        document.getElementById('ansInput').value = "";
+        document.getElementById('nameInput').value = "";
+        drawGrid();
     }
 
-    // --- 跨裝置傳輸邏輯 ---
+    function checkReadyAndOpen() {
+        if(db.length === 0) return alert("請先從選單載入考卷或建立新設定！");
+        document.getElementById('camIn').click();
+    }
+
+    // --- 備份與同步 ---
     function exportSyncFile() {
-        const data = {
-            ans: document.getElementById('ansInput').value.trim(),
-            names: document.getElementById('nameInput').value.trim(),
-            year: document.getElementById('yearName').value.trim()
-        };
-        const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+        let allData = {};
+        for(let i=0; i<localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if(key.startsWith('YEAR_DATA_')) allData[key] = localStorage.getItem(key);
+        }
+        const blob = new Blob([JSON.stringify(allData)], {type: "application/json"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `批改設定_${data.year}.json`;
-        a.click();
+        a.download = "批改大師_全年份備份.json"; a.click();
     }
 
     function importSyncFile(input) {
         const file = input.files[0];
         const reader = new FileReader();
         reader.onload = function(e) {
-            const data = JSON.parse(e.target.result);
-            document.getElementById('ansInput').value = data.ans;
-            document.getElementById('nameInput').value = data.names;
-            document.getElementById('yearName').value = data.year;
-            drawGrid(); saveLocalData(); // 匯入後自動存入本地選單
+            const allData = JSON.parse(e.target.result);
+            for(let key in allData) { localStorage.setItem(key, allData[key]); }
+            refreshYearSelect();
+            alert("多年份資料已同步完成！請由選單選擇。");
         };
         reader.readAsText(file);
     }
 
-    // 原有 5 題一隔與自動座號保留
+    // 保留 5 題一隔與紅框邏輯
     function drawGrid() {
         const val = document.getElementById('ansInput').value.trim();
         const grid = document.getElementById('ansGrid');
@@ -160,17 +177,12 @@
         }
     }
 
-    function saveConfig() {
-        const names = document.getElementById('nameInput').value.trim().split('\n').filter(n => n.trim());
-        ansStr = document.getElementById('ansInput').value.trim();
-        db = names.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n.trim() }));
-        cur = 0; updateUI();
-    }
-
     function updateUI() {
         if(db[cur]) {
+            document.getElementById('infoBar').innerText = `正在批改：${db[cur].no} 號 ${db[cur].name}`;
             document.getElementById('targetS').innerText = `${db[cur].no} 號 ${db[cur].name}`;
         } else {
+            document.getElementById('infoBar').innerText = "🏁 本卷掃描完成";
             document.getElementById('targetS').innerText = "全部完成";
         }
         renderTable();
@@ -195,12 +207,11 @@
 
     function confirmGrading() {
         let wrongs = [];
-        // 模擬辨識邏輯
         for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.9) wrongs.push(i+1); }
         const perQ = 100 / ansStr.length;
         const score = Math.round(100 - (wrongs.length * perQ));
         
-        if(confirm(`辨識完成！分數：${score}分。是否確認並進入下一位？`)) {
+        if(confirm(`辨識完成：${score}分。確認存檔？`)) {
             results[db[cur].no] = { name: db[cur].name, score: score, errs: wrongs.join(',') };
             wrapper.style.display = 'none';
             document.getElementById('historyCard').style.display = 'block';
@@ -208,7 +219,7 @@
         }
     }
 
-    // 拖曳縮放邏輯
+    // 拖曳邏輯
     dragBox.addEventListener('touchstart', (e) => {
         if(e.target.className === 'resizer') isResizing = true;
         else isDragging = true;
@@ -242,10 +253,10 @@
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `成績報表.csv`; a.click();
+        a.download = `${document.getElementById('yearName').value}_成績.csv`; a.click();
     }
 
-    window.onload = () => { updateSaveSelect(); };
+    window.onload = () => { refreshYearSelect(); };
 </script>
 </body>
 </html>
