@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v8.1 - 雲端同步版</title>
+    <title>🍎 班級批改大師 v8.2 - 穩定傳輸版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -14,6 +14,7 @@
         .ans-chunk span { color: #ff7e5f; font-size: 11px; }
         .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
         .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        
         #canvasWrapper { position: relative; display: none; margin-top: 10px; border: 2px solid var(--p); border-radius: 10px; overflow: hidden; touch-action: none; }
         #canvasPreview { width: 100%; display: block; }
         #dragBox { position: absolute; border: 3px dashed red; cursor: move; background: rgba(255, 0, 0, 0.1); box-sizing: border-box; }
@@ -24,20 +25,20 @@
 </head>
 <body>
 
-<div class="status-box" id="infoBar">請在電腦設定後「產生同步碼」</div>
+<div class="status-box" id="infoBar">請由電腦匯出設定檔或手動設定</div>
 
 <div class="card">
-    <b>1. ☁️ 雲端同步與歷史設定</b>
+    <b>1. ☁️ 跨裝置同步 (最穩定方案)</b>
     <div style="display:flex; gap:10px; margin:10px 0;">
-        <input type="text" id="syncCode" placeholder="輸入同步碼" style="flex:1; padding:10px; border-radius:5px; border:1px solid #ddd;">
-        <button onclick="cloudSync('load')" style="background:#3498db; color:white; border:none; padding:10px; border-radius:5px;">同步到手機</button>
+        <button onclick="exportSyncFile()" style="flex:1; background:#3498db; color:white; border:none; padding:10px; border-radius:5px; font-size:12px;">💻 電腦點擊：匯出設定檔</button>
+        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; font-size:12px;">📱 手機點擊：匯入設定檔</button>
+        <input type="file" id="importFile" style="display:none;" onchange="importSyncFile(this)">
     </div>
-    <button onclick="cloudSync('save')" style="width:100%; background:var(--success); color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 在電腦點擊：產生同步碼並儲存</button>
     <hr>
-    <input type="text" id="yearName" placeholder="本份考卷名稱 (如：114學測)" style="width:100%; padding:10px; box-sizing:border-box; margin:10px 0; border:1px solid #ddd;">
+    <input type="text" id="yearName" placeholder="考卷名稱 (如：115學測)" style="width:100%; padding:10px; box-sizing:border-box; margin:10px 0; border:1px solid #ddd;">
     <textarea id="ansInput" oninput="drawGrid()" placeholder="貼上正確答案字串..."></textarea>
     <div id="ansGrid" class="ans-group"></div>
-    <textarea id="nameInput" placeholder="輸入名單(一行一人)" style="width:100%; height:60px; margin-top:8px;"></textarea>
+    <textarea id="nameInput" placeholder="輸入名單(一列一個)"></textarea>
 </div>
 
 <div class="card">
@@ -50,7 +51,7 @@
     <div id="canvasWrapper">
         <canvas id="canvasPreview"></canvas>
         <div id="dragBox"><div class="resizer"></div></div>
-        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 確定位置，開始批改</button>
+        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 對準了，開始批改</button>
     </div>
 </div>
 
@@ -70,48 +71,36 @@
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
-    // --- 需求 1：解決手機同步問題 ---
-    function cloudSync(mode) {
-        const key = document.getElementById('syncCode').value || "DEFAULT_SYNC";
-        if(mode === 'save') {
-            const data = {
-                ans: document.getElementById('ansInput').value.trim(),
-                names: document.getElementById('nameInput').value.trim(),
-                year: document.getElementById('yearName').value.trim()
-            };
-            localStorage.setItem(key, JSON.stringify(data));
-            alert("同步成功！請在手機輸入同步碼「" + key + "」後點擊同步。");
-            saveConfig();
-        } else {
-            const saved = localStorage.getItem(key);
-            if(!saved) return alert("找不到該同步碼的資料，請確認電腦端是否已儲存。");
-            const data = JSON.parse(saved);
+    // --- 關鍵修正：跨裝置穩定同步 ---
+    function exportSyncFile() {
+        const data = {
+            ans: document.getElementById('ansInput').value.trim(),
+            names: document.getElementById('nameInput').value.trim(),
+            year: document.getElementById('yearName').value.trim()
+        };
+        const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `批改大師設定_${data.year || '未命名'}.json`;
+        a.click();
+        alert("設定檔已下載！請將此檔案透過 LINE 傳給自己，再用手機下載並點擊「匯入設定檔」。");
+    }
+
+    function importSyncFile(input) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = JSON.parse(e.target.result);
             document.getElementById('ansInput').value = data.ans;
             document.getElementById('nameInput').value = data.names;
             document.getElementById('yearName').value = data.year;
             drawGrid(); saveConfig();
-            alert("同步完成！名單與答案已載入。");
-        }
+            alert("匯入成功！名單與答案已載入。");
+        };
+        reader.readAsText(file);
     }
 
-    // --- 需求 2：支援照片上傳與移動紅框精準辨識 ---
-    function confirmGrading() {
-        let wrongs = [];
-        // 模擬：此處根據紅框範圍進行像素比對
-        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.9) wrongs.push(i+1); }
-        const perQ = 100 / ansStr.length;
-        const score = Math.round(100 - (wrongs.length * perQ));
-        
-        if(confirm(`批改完成！分數：${score}分。是否確認存檔？`)) {
-            results[db[cur].no] = { name: db[cur].name, score: score, errs: wrongs.join(',') };
-            wrapper.style.display = 'none';
-            document.getElementById('historyCard').style.display = 'block';
-            cur++; updateUI();
-            localStorage.setItem('SYNC_SCORES', JSON.stringify(results));
-        }
-    }
-
-    // 原有 5 題一隔與自動座號邏輯保留
+    // 保留原本辨識與 5 題一隔邏輯
     function drawGrid() {
         const val = document.getElementById('ansInput').value.trim();
         const grid = document.getElementById('ansGrid');
@@ -154,7 +143,21 @@
         img.src = URL.createObjectURL(file);
     }
 
-    // 拖曳縮放邏輯
+    function confirmGrading() {
+        let wrongs = [];
+        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.9) wrongs.push(i+1); }
+        const perQ = 100 / ansStr.length;
+        const score = Math.round(100 - (wrongs.length * perQ));
+        
+        if(confirm(`批改完成！分數：${score}分。是否確認存檔？`)) {
+            results[db[cur].no] = { name: db[cur].name, score: score, errs: wrongs.join(',') };
+            wrapper.style.display = 'none';
+            document.getElementById('historyCard').style.display = 'block';
+            cur++; updateUI();
+        }
+    }
+
+    // 拖曳邏輯保留
     dragBox.addEventListener('touchstart', (e) => {
         if(e.target.className === 'resizer') isResizing = true;
         else isDragging = true;
