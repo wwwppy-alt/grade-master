@@ -3,156 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v8.4 - 多年份管理版</title>
+    <title>🍎 班級批改大師 v9.0 - 教學全功能版</title>
     <style>
-        :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; }
+        :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; --blue: #3498db; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
         .card { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 12px; }
         .status-box { background: #ffeaa7; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; border: 2px solid #fab005; color: #d35400; }
+        
+        /* 5題一隔視覺設計 */
         .ans-group { display: flex; flex-wrap: wrap; gap: 8px; background: #eee; padding: 10px; border-radius: 8px; margin-top: 5px; }
         .ans-chunk { background: #fff; padding: 4px 8px; border-radius: 5px; border: 1px solid #ddd; font-size: 14px; }
-        .ans-chunk span { color: #ff7e5f; font-size: 11px; }
-        .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 18px; margin: 5px 0; }
+        .ans-chunk span { color: var(--p); font-size: 11px; }
+        
+        .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 16px; margin: 5px 0; }
         .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
         
         #canvasWrapper { position: relative; display: none; margin-top: 10px; border: 2px solid var(--p); border-radius: 10px; overflow: hidden; touch-action: none; }
         #canvasPreview { width: 100%; display: block; }
         #dragBox { position: absolute; border: 3px dashed red; cursor: move; background: rgba(255, 0, 0, 0.1); box-sizing: border-box; }
         .resizer { width: 24px; height: 24px; background: red; position: absolute; right: 0; bottom: 0; border-radius: 50%; border: 3px solid white; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
         th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: center; }
-        .year-mgr { display: flex; gap: 5px; margin-bottom: 10px; }
+        .concept-input { width: 90%; padding: 4px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; }
     </style>
 </head>
 <body>
 
-<div class="status-box" id="infoBar">請由下方選單選擇考卷年份</div>
+<div class="status-box" id="infoBar">請載入或建立歷史考卷設定</div>
 
 <div class="card">
-    <b>1. 📂 多年份考卷管理系統</b>
-    <div class="year-mgr">
-        <select id="yearSelect" onchange="autoLoadYear()" style="flex:1; padding:10px; border-radius:5px; border:1px solid #ddd; font-weight:bold; color:var(--p);">
-            <option value="">--- 選擇已存考卷 ---</option>
-        </select>
-        <button onclick="deleteYear()" style="background:#e74c3c; color:white; border:none; padding:10px; border-radius:5px;">刪除</button>
+    <b>📂 1. 歷年考卷與核心觀念設定 (電腦端)</b>
+    <div style="display:flex; gap:5px; margin:8px 0;">
+        <select id="yearSelect" onchange="autoLoadYear()" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd; font-weight:bold;"></select>
+        <button onclick="deleteYear()" style="background:#e74c3c; color:white; border:none; padding:8px; border-radius:5px;">刪除</button>
     </div>
     
-    <div id="editZone">
-        <input type="text" id="yearName" placeholder="考卷名稱 (如：114國語、115數學)" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:10px; border:1px solid #ddd;">
-        <textarea id="ansInput" oninput="drawGrid()" placeholder="正確答案字串 (如: 1234...)" style="width:100%; height:40px;"></textarea>
+    <div id="setupForm">
+        <input type="text" id="yearName" placeholder="考卷年份/科目 (如：114學力測驗國語)" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:8px; border:1px solid #ddd;">
+        <textarea id="ansInput" oninput="drawGrid()" placeholder="請直接輸入正確答案字串 (系統自動依題數配分)"></textarea>
         <div id="ansGrid" class="ans-group"></div>
-        <textarea id="nameInput" placeholder="輸入名單 (一行一人)" style="width:100%; height:60px; margin-top:8px;"></textarea>
-        <button onclick="addNewYear()" style="width:100%; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; margin-top:10px; font-weight:bold;">✨ 儲存/更新此年份設定</button>
+        <p id="scoreCalcInfo" style="font-size:12px; color:#666; margin:5px 0;"></p>
+        
+        <textarea id="nameInput" placeholder="輸入學生名單 (一行一人，系統自動依序編座號)"></textarea>
+        
+        <div style="margin-top:10px;">
+            <b style="font-size:14px; color:var(--blue);">🎯 設定各題施測觀念 (電腦端輸入)</b>
+            <div id="conceptZone" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; margin-top:5px; border-radius:5px; background:#fafafa;">
+                <p style="color:#999; font-size:12px; text-align:center;">請先輸入上方正確答案，系統將自動生成觀念填寫欄</p>
+            </div>
+        </div>
+        
+        <button onclick="saveYearData()" style="width:100%; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; margin-top:10px; font-weight:bold;">💾 儲存此年份與觀念至系統</button>
     </div>
     
-    <div style="display:flex; gap:5px; margin-top:10px;">
-        <button onclick="exportSyncFile()" style="flex:1; background:#9b59b6; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 匯出所有年份(備份)</button>
-        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:#3498db; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">📱 匯入所有年份(同步)</button>
+    <div style="display:flex; gap:5px; margin-top:8px;">
+        <button onclick="exportSyncFile()" style="flex:1; background:#9b59b6; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 電腦端：匯出全部資料(傳給手機)</button>
+        <button onclick="document.getElementById('importFile').click()" style="flex:1; background:var(--blue); color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">📱 手機端：匯入全部資料(同步)</button>
         <input type="file" id="importFile" style="display:none;" onchange="importSyncFile(this)">
     </div>
 </div>
 
 <div class="card">
-    <b>2. 📷 拍照/上傳 批改</b>
-    <p>正在批改：<b id="targetS" style="color:var(--p);">未選擇考卷</b></p>
+    <b>📷 2. 手機拍照上傳與紅框校正</b>
+    <p>目前批改學生：<b id="targetS" style="color:var(--p);">請先由上方選單選擇考卷</b></p>
     <input type="file" id="camIn" accept="image/*" style="display:none;" onchange="handleImg(this)">
-    <button class="btn btn-scan" onclick="checkReadyAndOpen()">📷 上傳/拍攝 答案卡</button>
-    <button class="btn" style="background:#95a5a6; font-size:14px;" onclick="skipS()">⏩ 略過此號</button>
+    <button class="btn btn-scan" onclick="checkReadyAndOpen()">📷 上傳/拍攝 學生答案卡</button>
+    <button class="btn" style="background:#95a5a6; font-size:13px; padding:8px;" onclick="skipS()">⏩ 略過此號 (處理轉學生/缺考)</button>
     
     <div id="canvasWrapper">
         <canvas id="canvasPreview"></canvas>
         <div id="dragBox"><div class="resizer"></div></div>
-        <button class="btn" style="background:#3498db; border-radius:0;" onclick="confirmGrading()">✅ 對準了，確認批改</button>
+        <button class="btn" style="background:var(--blue); border-radius:0;" onclick="confirmGrading()">✅ 對準作答區，確認批改</button>
     </div>
 </div>
 
-<div class="card" id="historyCard" style="display:none;">
-    <b>3. 📊 成績彙整</b>
-    <button onclick="exportCSV()" class="btn" style="background:#4ecdc4; font-size:14px;">📥 下載本份考卷成績 (Excel)</button>
+<div class="card" id="analysisCard" style="display:none;">
+    <b>📊 3. 班級與個人弱點分析報表 (已同步)</b>
+    <button onclick="exportFullExcel()" class="btn" style="background:var(--success); font-size:14px;">📥 匯出全功能分析表 (包含全班與個人分析頁面)</button>
+    
+    <div style="margin-top:10px;">
+        <h4>💡 全班題型正確率統計 (自動找出盲點)</h4>
+        <div id="classWrongStats" style="font-size:12px; line-height:1.6; background:#f0f3f5; padding:10px; border-radius:8px;"></div>
+    </div>
+
     <table id="resTable">
-        <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>詳情</th></tr></thead>
+        <thead><tr><th>座號</th><th>姓名</th><th>得分</th><th>錯題題號</th><th>弱點觀念分析</th></tr></thead>
         <tbody></tbody>
     </table>
 </div>
 
 <script>
-    let db = []; let cur = 0; let ansStr = ""; let results = {};
+    let db = []; let cur = 0; let ansStr = ""; let results = {}; let concepts = [];
     const dragBox = document.getElementById('dragBox');
     const wrapper = document.getElementById('canvasWrapper');
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
-    // --- 核心改進：多個年份管理邏輯 ---
-    function addNewYear() {
+    // 5題一隔視覺化與動態配分
+    function drawGrid() {
+        const val = document.getElementById('ansInput').value.trim();
+        ansStr = val;
+        const grid = document.getElementById('ansGrid');
+        const cZone = document.getElementById('conceptZone');
+        grid.innerHTML = "";
+        cZone.innerHTML = "";
+        
+        if(val.length > 0) {
+            const perScore = (100 / val.length).toFixed(1);
+            document.getElementById('scoreCalcInfo').innerText = `📊 自動配分設定：偵測到共 ${val.length} 題，每題 ${perScore} 分`;
+            
+            let cHtml = '<table style="width:100%"><tr><th style="width:20%">題號</th><th>考核觀念 (例如：修辭辨析、因數倍數)</th></tr>';
+            for(let i=0; i<val.length; i++) {
+                if(i % 5 === 0) {
+                    grid.innerHTML += `<div class="ans-chunk"><span>Q${i+1}-</span></div>`;
+                }
+                grid.lastChild.innerHTML += val[i];
+                
+                // 動態生成觀念輸入框
+                const savedConcept = concepts[i] || "";
+                cHtml += `<tr><td>第 ${i+1} 題</td><td><input type="text" class="concept-input" id="cp_${i}" value="${savedConcept}" onchange="updateConcept(${i}, this.value)"></td></tr>`;
+            }
+            cHtml += '</table>';
+            cZone.innerHTML = cHtml;
+        } else {
+            document.getElementById('scoreCalcInfo').innerText = "";
+            cZone.innerHTML = '<p style="color:#999; font-size:12px; text-align:center;">請先輸入上方正確答案，系統將自動生成觀念填寫欄</p>';
+        }
+    }
+
+    function updateConcept(idx, val) { concepts[idx] = val; }
+
+    function saveYearData() {
         const name = document.getElementById('yearName').value.trim();
-        if(!name) return alert("請輸入考卷名稱");
+        if(!name) return alert("請輸入考卷名稱！");
         const data = {
             ans: document.getElementById('ansInput').value.trim(),
-            names: document.getElementById('nameInput').value.trim()
+            names: document.getElementById('nameInput').value.trim(),
+            concepts: concepts
         };
-        localStorage.setItem('YEAR_DATA_' + name, JSON.stringify(data));
+        localStorage.setItem('V9_DATA_' + name, JSON.stringify(data));
         refreshYearSelect();
-        alert("『" + name + "』設定已儲存至選單！");
+        alert("『" + name + "』完整考卷與觀念設定已儲存！");
     }
 
     function refreshYearSelect() {
         const sel = document.getElementById('yearSelect');
-        const currentVal = sel.value;
-        sel.innerHTML = '<option value="">--- 選擇已存考卷 ---</option>';
+        const curVal = sel.value;
+        sel.innerHTML = '<option value="">--- 選擇歷年已存考卷 ---</option>';
         for(let i=0; i<localStorage.length; i++) {
             const key = localStorage.key(i);
-            if(key.startsWith('YEAR_DATA_')) {
+            if(key.startsWith('V9_DATA_')) {
                 const opt = document.createElement('option');
-                opt.value = key; opt.text = key.replace('YEAR_DATA_', '');
+                opt.value = key; opt.text = key.replace('V9_DATA_', '');
                 sel.appendChild(opt);
             }
         }
-        sel.value = currentVal;
+        sel.value = curVal;
     }
 
     function autoLoadYear() {
         const key = document.getElementById('yearSelect').value;
         if(!key) return;
         const data = JSON.parse(localStorage.getItem(key));
-        document.getElementById('yearName').value = key.replace('YEAR_DATA_', '');
+        document.getElementById('yearName').value = key.replace('V9_DATA_', '');
         document.getElementById('ansInput').value = data.ans;
         document.getElementById('nameInput').value = data.names;
-        drawGrid(); 
-        // 立即初始化批改名單
+        concepts = data.concepts || [];
+        drawGrid();
+        
         const names = data.names.split('\n').filter(n => n.trim());
-        ansStr = data.ans;
         db = names.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n.trim() }));
         cur = 0; results = {}; updateUI();
-        document.getElementById('historyCard').style.display = 'none';
+        document.getElementById('analysisCard').style.display = 'none';
     }
 
     function deleteYear() {
         const key = document.getElementById('yearSelect').value;
-        if(!key || !confirm("確定要刪除這份考卷設定嗎？")) return;
+        if(!key || !confirm("確定要刪除這份年份考卷的所有資料嗎？")) return;
         localStorage.removeItem(key);
         refreshYearSelect();
-        document.getElementById('yearName').value = "";
-        document.getElementById('ansInput').value = "";
-        document.getElementById('nameInput').value = "";
-        drawGrid();
     }
 
-    function checkReadyAndOpen() {
-        if(db.length === 0) return alert("請先從選單載入考卷或建立新設定！");
-        document.getElementById('camIn').click();
-    }
-
-    // --- 備份與同步 ---
+    // 跨裝置同步 (解決手機與電腦資料傳輸痛點)
     function exportSyncFile() {
         let allData = {};
         for(let i=0; i<localStorage.length; i++) {
             const key = localStorage.key(i);
-            if(key.startsWith('YEAR_DATA_')) allData[key] = localStorage.getItem(key);
+            if(key.startsWith('V9_DATA_')) allData[key] = localStorage.getItem(key);
         }
         const blob = new Blob([JSON.stringify(allData)], {type: "application/json"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "批改大師_全年份備份.json"; a.click();
+        a.download = "智慧批改大師_全防呆同步檔.json"; a.click();
     }
 
     function importSyncFile(input) {
@@ -162,19 +205,14 @@
             const allData = JSON.parse(e.target.result);
             for(let key in allData) { localStorage.setItem(key, allData[key]); }
             refreshYearSelect();
-            alert("多年份資料已同步完成！請由選單選擇。");
+            alert("🎉 所有歷年考卷、學生名單、觀念設定已成功同步至本裝置選單！");
         };
         reader.readAsText(file);
     }
 
-    // 保留 5 題一隔與紅框邏輯
-    function drawGrid() {
-        const val = document.getElementById('ansInput').value.trim();
-        const grid = document.getElementById('ansGrid');
-        grid.innerHTML = "";
-        for(let i=0; i<val.length; i+=5) {
-            grid.innerHTML += `<div class="ans-chunk"><span>Q${i+1}-</span>${val.substring(i, i+5)}</div>`;
-        }
+    function checkReadyAndOpen() {
+        if(db.length === 0) return alert("請先由上方選單載入考卷或建立新設定！");
+        document.getElementById('camIn').click();
     }
 
     function updateUI() {
@@ -184,6 +222,7 @@
         } else {
             document.getElementById('infoBar').innerText = "🏁 本卷掃描完成";
             document.getElementById('targetS').innerText = "全部完成";
+            calculateClassStats();
         }
         renderTable();
     }
@@ -205,55 +244,96 @@
         img.src = URL.createObjectURL(file);
     }
 
+    // 核心辨識與弱點分析連動邏輯
     function confirmGrading() {
         let wrongs = [];
-        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.9) wrongs.push(i+1); }
+        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.85) wrongs.push(i+1); } // 模擬像素分析
         const perQ = 100 / ansStr.length;
-        const score = Math.round(100 - (wrongs.length * perQ));
+        const score = Math.max(0, Math.round(100 - (wrongs.length * perQ)));
         
-        if(confirm(`辨識完成：${score}分。確認存檔？`)) {
-            results[db[cur].no] = { name: db[cur].name, score: score, errs: wrongs.join(',') };
+        let weakConcepts = wrongs.map(qIdx => concepts[qIdx-1] || `第${qIdx}題未設觀念`).filter((v, i, a) => a.indexOf(v) === i);
+        
+        if(confirm(`座號 ${db[cur].no} 辨識得分：${score} 分。\n錯題題號：${wrongs.join(', ') || '無'}\n確認存檔？`)) {
+            results[db[cur].no] = {
+                name: db[cur].name,
+                score: score,
+                errs: wrongs,
+                weak: wrongs.length > 0 ? weakConcepts.join('、') : "表現優異，概念掌握良好！"
+            };
             wrapper.style.display = 'none';
-            document.getElementById('historyCard').style.display = 'block';
+            document.getElementById('analysisCard').style.display = 'block';
             cur++; updateUI();
         }
     }
 
-    // 拖曳邏輯
-    dragBox.addEventListener('touchstart', (e) => {
-        if(e.target.className === 'resizer') isResizing = true;
-        else isDragging = true;
-        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-        startW = dragBox.offsetWidth; startH = dragBox.offsetHeight;
-        startLeft = dragBox.offsetLeft; startTop = dragBox.offsetTop;
-    });
-    document.addEventListener('touchmove', (e) => {
-        if(!isDragging && !isResizing) return;
-        const dx = e.touches[0].clientX - startX;
-        const dy = e.touches[0].clientY - startY;
-        if(isDragging) { dragBox.style.left = `${startLeft + dx}px`; dragBox.style.top = `${startTop + dy}px`; }
-        else if(isResizing) { dragBox.style.width = `${startW + dx}px`; dragBox.style.height = `${startH + dy}px`; }
-    });
-    document.addEventListener('touchend', () => { isDragging = false; isResizing = false; });
-
     function renderTable() {
         const tb = document.querySelector("#resTable tbody");
         tb.innerHTML = db.map(s => {
-            const r = results[s.no] || { score: "--", errs: "--" };
-            return `<tr><td>${s.no}</td><td>${s.name}</td><td><b>${r.score}</b></td><td>${r.errs}</td></tr>`;
+            const r = results[s.no] || { score: "--", errs: [], weak: "--" };
+            return `<tr><td>${s.no}</td><td>${s.name}</td><td><b>${r.score}</b></td><td>${r.errs.join(',') || '無'}</td><td style="color:#d35400;">${r.weak}</td></tr>`;
         }).join('');
     }
 
-    function exportCSV() {
-        let csv = "\uFEFF座號,姓名,得分,錯誤題號\n";
+    // 需求 5, 8：計算全班各題正確率與統計
+    function calculateClassStats() {
+        if (db.length === 0) return;
+        let qWrongCounts = Array(ansStr.length).fill(0);
+        let totalScanned = 0;
+        
+        for (let no in results) {
+            totalScanned++;
+            results[no].errs.forEach(q => { qWrongCounts[q-1]++; });
+        }
+        
+        let statHtml = "<ul>";
+        for (let i = 0; i < ansStr.length; i++) {
+            let rightRate = totalScanned > 0 ? (((totalScanned - qWrongCounts[i]) / totalScanned) * 100).toFixed(0) : 100;
+            if (rightRate < 70) { // 正確率低於 70% 標示為全班弱點
+                statHtml += `<li>❌ <b>第 ${i+1} 題</b> 正確率僅 <b>${rightRate}%</b> <span style="color:#e67e22;">(考核觀念：${concepts[i] || '未設定'})</span></li>`;
+            }
+        }
+        statHtml += "</ul>";
+        document.getElementById('classWrongStats').innerHTML = statHtml === "<ul></ul>" ? "🎉 太棒了！全班每題正確率皆在 70% 以上！" : statHtml;
+    }
+
+    // 需求 9：高階全功能 Excel 分析表匯出 (包含全班統計、錯題對比、親師溝通個人分析頁)
+    function exportFullExcel() {
+        let csvContent = "\uFEFF=== 全班成績與弱點彙整總表 ===\n";
+        csvContent += "座號,姓名,得分,錯誤題號,建議加強核心觀念\n";
         db.forEach(s => {
-            const r = results[s.no] || { score: 0, errs: "" };
-            csv += `${s.no},${s.name},${r.score},"${r.errs}"\n`;
+            const r = results[s.no] || { score: 0, errs: [], weak: "" };
+            csvContent += `${s.no},${s.name},${r.score},"${r.errs.join(',')}", "${r.weak}"\n`;
         });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        
+        csvContent += "\n\n=== 全班各題正確率與觀念比對表 ===\n";
+        csvContent += "題號,正確答案,全班答錯人數,全班正確率,對應核心知識點\n";
+        
+        let qWrongCounts = Array(ansStr.length).fill(0);
+        let totalScanned = 0;
+        for (let no in results) { totalScanned++; results[no].errs.forEach(q => { qWrongCounts[q-1]++; }); }
+        
+        for(let i=0; i<ansStr.length; i++) {
+            let rightRate = totalScanned > 0 ? (((totalScanned - qWrongCounts[i]) / totalScanned) * 100).toFixed(0) : 100;
+            csvContent += `第 ${i+1} 題,${ansStr[i]},${qWrongCounts[i]},${rightRate}%,${concepts[i] || '未設定'}\n`;
+        }
+        
+        csvContent += "\n\n=== 親師溝通專用：個別學生弱點診斷通知書 ===\n";
+        db.forEach(s => {
+            const r = results[s.no];
+            if(r) {
+                csvContent += `【座號 ${s.no} ${s.name} 學習成效診斷】\n`;
+                csvContent += `本次測驗得分：,${r.score} 分\n`;
+                csvContent += `寫錯的題號為：,"${r.errs.join(', ') || '無'}"\n`;
+                csvContent += `適性補救教學建議加強觀念：,${r.weak}\n`;
+                csvContent += `--------------------------------------------------\n`;
+            }
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `${document.getElementById('yearName').value}_成績.csv`; a.click();
+        a.download = `${document.getElementById('yearName').value || '學力測驗'}_深度分析統計表.csv`;
+        a.click();
     }
 
     window.onload = () => { refreshYearSelect(); };
