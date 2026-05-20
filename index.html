@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v9.1 - 歷屆答案匯入版</title>
+    <title>🍎 班級批改大師 v9.3 - 直橫雙向過濾版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; --blue: #3498db; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -34,7 +34,7 @@
 <div class="status-box" id="infoBar">請載入年份或利用「快速檔案匯入」免手打</div>
 
 <div class="card">
-    <b>📂 1. 📂 多年份考卷管理與智慧匯入系統 (電腦端)</b>
+    <b>📂 1. 多年份考卷管理與智慧匯入系統 (電腦端)</b>
     <div style="display:flex; gap:5px; margin:8px 0;">
         <select id="yearSelect" onchange="autoLoadYear()" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd; font-weight:bold;"></select>
         <button onclick="deleteYear()" style="background:#e74c3c; color:white; border:none; padding:8px; border-radius:5px;">刪除</button>
@@ -44,13 +44,13 @@
         <input type="text" id="yearName" placeholder="考卷年份/科目 (如：114學力測驗國語)" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:8px; border:1px solid #ddd;">
         
         <div style="background:#e8f4f8; padding:10px; border-radius:10px; border:1px solid #bce1ec; margin-bottom:10px;">
-            <b style="color:#2b8a3e; font-size:14px;">👓 老教師護眼功能：一鍵匯入答案檔</b><br>
-            <span style="font-size:11px; color:#666;">支援 Excel 轉出的文字檔、CSV 檔，或直接複製 PDF 答案內容貼入</span>
+            <b style="color:#2b8a3e; font-size:14px;">👓 老教師護眼功能：一鍵匯入答案檔 (支援直橫向答案)</b><br>
+            <span style="font-size:11px; color:#666;">支援直向或橫向公告的 Excel 轉出檔 (.csv/.txt)，自動智慧過濾題號</span>
             <input type="file" id="ansFileImport" accept=".csv,.txt" style="display:none;" onchange="handleAnsFile(this)">
             <button class="btn btn-eye" onclick="document.getElementById('ansFileImport').click()">📄 點此匯入 Excel答案檔 (.csv/.txt)</button>
         </div>
 
-        <textarea id="ansInput" oninput="drawGrid()" placeholder="此處會自動顯示匯入的答案，亦可手動調整..."></textarea>
+        <textarea id="ansInput" oninput="drawGrid()" placeholder="此處會自動顯示過濾後的純答案，亦可手動調整..."></textarea>
         <div id="ansGrid" class="ans-group"></div>
         <p id="scoreCalcInfo" style="font-size:12px; color:#666; margin:5px 0;"></p>
         
@@ -109,22 +109,63 @@
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
-    // 🆕 新增：處理由 Excel 另存的答案檔（自動提取裡面的所有數字答案）
+    // 🛠️ 終極智慧修正：支援直向與橫向公告格式，徹底防呆過濾題號
     function handleAnsFile(input) {
         const file = input.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
             const text = e.target.result;
-            // 智慧防呆防錯：自動把檔案中的換行、空格、中文字、逗號通通濾掉，只留下純數字答案
-            const cleanedAns = text.replace(/[^1-4]/g, '');
-            if(cleanedAns.length === 0) {
-                alert("⚠️ 讀取失敗：檔案內無有效的答案劃記數字 (1~4)！");
-                return;
+            let finalAnsArray = [];
+            
+            // 處理橫向或直向的行資料
+            const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(l => l.length > 0);
+            
+            // 檢查是否為「橫向公告格式」（特徵：某一行包含大量連續題號，如 1~10 或更多數字）
+            let isHorizontalLayout = false;
+            if (lines.length >= 2) {
+                const firstLineNums = lines[0].split(/[\s,]+/).filter(t => t.match(/^\d+$/));
+                // 如果第一行全部都是數字，且長度大於 5，通常代表這是橫向排列的「題號列」
+                if (firstLineNums.length > 5) {
+                    isHorizontalLayout = true;
+                }
             }
+
+            if (isHorizontalLayout) {
+                // 🧭 橫向處理邏輯：直接抓取第二行（也就是答案列）
+                // 自動將裡面不是 1~4 的雜質與符號清空，只留純答案數字
+                const answerLine = lines[1];
+                const tokens = answerLine.split(/[\s,]+/).filter(t => t.length > 0);
+                tokens.forEach(token => {
+                    const clean = token.replace(/[^1-4]/g, '');
+                    if (clean.length === 1) finalAnsArray.push(clean);
+                });
+            } else {
+                // 🧭 直向處理邏輯（維持 v9.2 穩定版）：逐行抓取最右邊的答案格
+                lines.forEach(line => {
+                    const parts = line.split(/[,]+/); // 先試著用 CSV 逗號拆
+                    parts.forEach(part => {
+                        const tokens = part.trim().split(/\s+/).filter(t => t.length > 0);
+                        if (tokens.length >= 2) {
+                            const lastToken = tokens[tokens.length - 1].replace(/[^1-4]/g, '');
+                            if (lastToken.length === 1) finalAnsArray.push(lastToken);
+                        } else if (tokens.length === 1) {
+                            const cleanNum = tokens[0].replace(/[^1-4]/g, '');
+                            if (cleanNum.length === 1) finalAnsArray.push(cleanNum);
+                        }
+                    });
+                });
+            }
+
+            // 總體保險防呆：如果過濾完完全沒東西，退回純數字提取法
+            let cleanedAns = finalAnsArray.join('');
+            if (cleanedAns.length === 0 || cleanedAns.length > 100) {
+                cleanedAns = text.replace(/[^1-4]/g, '');
+            }
+
             document.getElementById('ansInput').value = cleanedAns;
             drawGrid();
-            alert(`🎉 智慧匯入成功！已成功載入 ${cleanedAns.length} 題答案，眼睛免負荷！`);
+            alert(`🎉 直橫向智慧過濾成功！已自動偵測版面格式並切除題號，載入 ${cleanedAns.length} 題純答案！`);
         };
         reader.readAsText(file, "UTF-8");
     }
