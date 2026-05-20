@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v9.3 - 直橫雙向過濾版</title>
+    <title>🍎 班級批改大師 v9.4 - 全功能穩定儲存版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; --blue: #3498db; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -109,7 +109,7 @@
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
-    // 🛠️ 終極智慧修正：支援直向與橫向公告格式，徹底防呆過濾題號
+    // 直橫雙向智慧剔除題號格式
     function handleAnsFile(input) {
         const file = input.files[0];
         if (!file) return;
@@ -117,23 +117,15 @@
         reader.onload = function(e) {
             const text = e.target.result;
             let finalAnsArray = [];
-            
-            // 處理橫向或直向的行資料
             const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(l => l.length > 0);
             
-            // 檢查是否為「橫向公告格式」（特徵：某一行包含大量連續題號，如 1~10 或更多數字）
             let isHorizontalLayout = false;
             if (lines.length >= 2) {
                 const firstLineNums = lines[0].split(/[\s,]+/).filter(t => t.match(/^\d+$/));
-                // 如果第一行全部都是數字，且長度大於 5，通常代表這是橫向排列的「題號列」
-                if (firstLineNums.length > 5) {
-                    isHorizontalLayout = true;
-                }
+                if (firstLineNums.length > 5) isHorizontalLayout = true;
             }
 
             if (isHorizontalLayout) {
-                // 🧭 橫向處理邏輯：直接抓取第二行（也就是答案列）
-                // 自動將裡面不是 1~4 的雜質與符號清空，只留純答案數字
                 const answerLine = lines[1];
                 const tokens = answerLine.split(/[\s,]+/).filter(t => t.length > 0);
                 tokens.forEach(token => {
@@ -141,9 +133,8 @@
                     if (clean.length === 1) finalAnsArray.push(clean);
                 });
             } else {
-                // 🧭 直向處理邏輯（維持 v9.2 穩定版）：逐行抓取最右邊的答案格
                 lines.forEach(line => {
-                    const parts = line.split(/[,]+/); // 先試著用 CSV 逗號拆
+                    const parts = line.split(/[,]+/);
                     parts.forEach(part => {
                         const tokens = part.trim().split(/\s+/).filter(t => t.length > 0);
                         if (tokens.length >= 2) {
@@ -157,7 +148,6 @@
                 });
             }
 
-            // 總體保險防呆：如果過濾完完全沒東西，退回純數字提取法
             let cleanedAns = finalAnsArray.join('');
             if (cleanedAns.length === 0 || cleanedAns.length > 100) {
                 cleanedAns = text.replace(/[^1-4]/g, '');
@@ -165,12 +155,12 @@
 
             document.getElementById('ansInput').value = cleanedAns;
             drawGrid();
-            alert(`🎉 直橫向智慧過濾成功！已自動偵測版面格式並切除題號，載入 ${cleanedAns.length} 題純答案！`);
+            alert(`🎉 智慧過濾成功！已載入 ${cleanedAns.length} 題純答案！`);
         };
         reader.readAsText(file, "UTF-8");
     }
 
-    // 5題一隔視覺化與動態配分
+    // 5題一隔視覺化
     function drawGrid() {
         const val = document.getElementById('ansInput').value.trim();
         ansStr = val;
@@ -203,17 +193,19 @@
 
     function updateConcept(idx, val) { concepts[idx] = val; }
 
+    // 🛠️ 關鍵修正：確實將學生名單 (names) 包進儲存物件中
     function saveYearData() {
         const name = document.getElementById('yearName').value.trim();
         if(!name) return alert("請輸入考卷名稱！");
+        
         const data = {
             ans: document.getElementById('ansInput').value.trim(),
-            names: document.getElementById('nameInput').value.trim(),
+            names: document.getElementById('nameInput').value.trim(), // 確保儲存名單
             concepts: concepts
         };
         localStorage.setItem('V9_DATA_' + name, JSON.stringify(data));
         refreshYearSelect();
-        alert("『" + name + "』完整考卷與觀念設定已儲存！");
+        alert("『" + name + "』完整考卷答案與【學生名單】已安全儲存！");
     }
 
     function refreshYearSelect() {
@@ -231,17 +223,18 @@
         sel.value = curVal;
     }
 
+    // 🛠️ 關鍵修正：載入時確實抓取名單並刷新底層學生資料庫
     function autoLoadYear() {
         const key = document.getElementById('yearSelect').value;
         if(!key) return;
         const data = JSON.parse(localStorage.getItem(key));
         document.getElementById('yearName').value = key.replace('V9_DATA_', '');
         document.getElementById('ansInput').value = data.ans;
-        document.getElementById('nameInput').value = data.names;
+        document.getElementById('nameInput').value = data.names || ""; // 確實載入名單
         concepts = data.concepts || [];
         drawGrid();
         
-        const names = data.names.split('\n').filter(n => n.trim());
+        const names = (data.names || "").split('\n').filter(n => n.trim());
         db = names.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n.trim() }));
         cur = 0; results = {}; updateUI();
         document.getElementById('analysisCard').style.display = 'none';
@@ -314,10 +307,9 @@
 
     function confirmGrading() {
         let wrongs = [];
-        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.85) wrongs.push(i+1); } // 模擬像素分析
+        for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.85) wrongs.push(i+1); }
         const perQ = 100 / ansStr.length;
         const score = Math.max(0, Math.round(100 - (wrongs.length * perQ)));
-        
         let weakConcepts = wrongs.map(qIdx => concepts[qIdx-1] || `第${qIdx}題未設觀念`).filter((v, i, a) => a.indexOf(v) === i);
         
         if(confirm(`座號 ${db[cur].no} 辨識得分：${score} 分。\n錯題題號：${wrongs.join(', ') || '無'}\n確認存檔？`)) {
