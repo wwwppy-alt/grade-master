@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v9.0 - 教學全功能版</title>
+    <title>🍎 班級批改大師 v9.1 - 歷屆答案匯入版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; --blue: #3498db; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -17,6 +17,7 @@
         
         .btn { padding: 14px; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; color: white; width: 100%; font-size: 16px; margin: 5px 0; }
         .btn-scan { background: linear-gradient(135deg, #ff7e5f, #feb47b); }
+        .btn-eye { background: #20c997; font-size: 13px; padding: 8px; margin: 5px 0; }
         
         #canvasWrapper { position: relative; display: none; margin-top: 10px; border: 2px solid var(--p); border-radius: 10px; overflow: hidden; touch-action: none; }
         #canvasPreview { width: 100%; display: block; }
@@ -30,10 +31,10 @@
 </head>
 <body>
 
-<div class="status-box" id="infoBar">請載入或建立歷史考卷設定</div>
+<div class="status-box" id="infoBar">請載入年份或利用「快速檔案匯入」免手打</div>
 
 <div class="card">
-    <b>📂 1. 歷年考卷與核心觀念設定 (電腦端)</b>
+    <b>📂 1. 📂 多年份考卷管理與智慧匯入系統 (電腦端)</b>
     <div style="display:flex; gap:5px; margin:8px 0;">
         <select id="yearSelect" onchange="autoLoadYear()" style="flex:1; padding:8px; border-radius:5px; border:1px solid #ddd; font-weight:bold;"></select>
         <button onclick="deleteYear()" style="background:#e74c3c; color:white; border:none; padding:8px; border-radius:5px;">刪除</button>
@@ -41,16 +42,24 @@
     
     <div id="setupForm">
         <input type="text" id="yearName" placeholder="考卷年份/科目 (如：114學力測驗國語)" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:8px; border:1px solid #ddd;">
-        <textarea id="ansInput" oninput="drawGrid()" placeholder="請直接輸入正確答案字串 (系統自動依題數配分)"></textarea>
+        
+        <div style="background:#e8f4f8; padding:10px; border-radius:10px; border:1px solid #bce1ec; margin-bottom:10px;">
+            <b style="color:#2b8a3e; font-size:14px;">👓 老教師護眼功能：一鍵匯入答案檔</b><br>
+            <span style="font-size:11px; color:#666;">支援 Excel 轉出的文字檔、CSV 檔，或直接複製 PDF 答案內容貼入</span>
+            <input type="file" id="ansFileImport" accept=".csv,.txt" style="display:none;" onchange="handleAnsFile(this)">
+            <button class="btn btn-eye" onclick="document.getElementById('ansFileImport').click()">📄 點此匯入 Excel答案檔 (.csv/.txt)</button>
+        </div>
+
+        <textarea id="ansInput" oninput="drawGrid()" placeholder="此處會自動顯示匯入的答案，亦可手動調整..."></textarea>
         <div id="ansGrid" class="ans-group"></div>
         <p id="scoreCalcInfo" style="font-size:12px; color:#666; margin:5px 0;"></p>
         
-        <textarea id="nameInput" placeholder="輸入學生名單 (一行一人，系統自動依序編座號)"></textarea>
+        <textarea id="nameInput" placeholder="輸入學生名單 (一行一人，自動編座號)"></textarea>
         
         <div style="margin-top:10px;">
             <b style="font-size:14px; color:var(--blue);">🎯 設定各題施測觀念 (電腦端輸入)</b>
             <div id="conceptZone" style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 5px; margin-top:5px; border-radius:5px; background:#fafafa;">
-                <p style="color:#999; font-size:12px; text-align:center;">請先輸入上方正確答案，系統將自動生成觀念填寫欄</p>
+                <p style="color:#999; font-size:12px; text-align:center;">請先設定答案，系統將自動生成觀念填寫欄</p>
             </div>
         </div>
         
@@ -79,7 +88,7 @@
 </div>
 
 <div class="card" id="analysisCard" style="display:none;">
-    <b>📊 3. 班級與個人弱點分析報表 (已同步)</b>
+    <b>📊 3. 班級與個人弱點分析報表</b>
     <button onclick="exportFullExcel()" class="btn" style="background:var(--success); font-size:14px;">📥 匯出全功能分析表 (包含全班與個人分析頁面)</button>
     
     <div style="margin-top:10px;">
@@ -100,6 +109,26 @@
     let isDragging = false; let isResizing = false;
     let startX, startY, startW, startH, startLeft, startTop;
 
+    // 🆕 新增：處理由 Excel 另存的答案檔（自動提取裡面的所有數字答案）
+    function handleAnsFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const text = e.target.result;
+            // 智慧防呆防錯：自動把檔案中的換行、空格、中文字、逗號通通濾掉，只留下純數字答案
+            const cleanedAns = text.replace(/[^1-4]/g, '');
+            if(cleanedAns.length === 0) {
+                alert("⚠️ 讀取失敗：檔案內無有效的答案劃記數字 (1~4)！");
+                return;
+            }
+            document.getElementById('ansInput').value = cleanedAns;
+            drawGrid();
+            alert(`🎉 智慧匯入成功！已成功載入 ${cleanedAns.length} 題答案，眼睛免負荷！`);
+        };
+        reader.readAsText(file, "UTF-8");
+    }
+
     // 5題一隔視覺化與動態配分
     function drawGrid() {
         const val = document.getElementById('ansInput').value.trim();
@@ -113,14 +142,13 @@
             const perScore = (100 / val.length).toFixed(1);
             document.getElementById('scoreCalcInfo').innerText = `📊 自動配分設定：偵測到共 ${val.length} 題，每題 ${perScore} 分`;
             
-            let cHtml = '<table style="width:100%"><tr><th style="width:20%">題號</th><th>考核觀念 (例如：修辭辨析、因數倍數)</th></tr>';
+            let cHtml = '<table style="width:100%"><tr><th style="width:20%">題號</th><th>考核觀念</th></tr>';
             for(let i=0; i<val.length; i++) {
                 if(i % 5 === 0) {
                     grid.innerHTML += `<div class="ans-chunk"><span>Q${i+1}-</span></div>`;
                 }
                 grid.lastChild.innerHTML += val[i];
                 
-                // 動態生成觀念輸入框
                 const savedConcept = concepts[i] || "";
                 cHtml += `<tr><td>第 ${i+1} 題</td><td><input type="text" class="concept-input" id="cp_${i}" value="${savedConcept}" onchange="updateConcept(${i}, this.value)"></td></tr>`;
             }
@@ -128,7 +156,7 @@
             cZone.innerHTML = cHtml;
         } else {
             document.getElementById('scoreCalcInfo').innerText = "";
-            cZone.innerHTML = '<p style="color:#999; font-size:12px; text-align:center;">請先輸入上方正確答案，系統將自動生成觀念填寫欄</p>';
+            cZone.innerHTML = '<p style="color:#999; font-size:12px; text-align:center;">請先設定答案，系統將自動生成觀念填寫欄</p>';
         }
     }
 
@@ -185,7 +213,6 @@
         refreshYearSelect();
     }
 
-    // 跨裝置同步 (解決手機與電腦資料傳輸痛點)
     function exportSyncFile() {
         let allData = {};
         for(let i=0; i<localStorage.length; i++) {
@@ -195,7 +222,7 @@
         const blob = new Blob([JSON.stringify(allData)], {type: "application/json"});
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = "智慧批改大師_全防呆同步檔.json"; a.click();
+        a.download = "智慧批改大師_全功能同步檔.json"; a.click();
     }
 
     function importSyncFile(input) {
@@ -244,7 +271,6 @@
         img.src = URL.createObjectURL(file);
     }
 
-    // 核心辨識與弱點分析連動邏輯
     function confirmGrading() {
         let wrongs = [];
         for(let i=0; i<ansStr.length; i++) { if(Math.random() > 0.85) wrongs.push(i+1); } // 模擬像素分析
@@ -274,29 +300,23 @@
         }).join('');
     }
 
-    // 需求 5, 8：計算全班各題正確率與統計
     function calculateClassStats() {
         if (db.length === 0) return;
         let qWrongCounts = Array(ansStr.length).fill(0);
         let totalScanned = 0;
-        
-        for (let no in results) {
-            totalScanned++;
-            results[no].errs.forEach(q => { qWrongCounts[q-1]++; });
-        }
+        for (let no in results) { totalScanned++; results[no].errs.forEach(q => { qWrongCounts[q-1]++; }); }
         
         let statHtml = "<ul>";
         for (let i = 0; i < ansStr.length; i++) {
             let rightRate = totalScanned > 0 ? (((totalScanned - qWrongCounts[i]) / totalScanned) * 100).toFixed(0) : 100;
-            if (rightRate < 70) { // 正確率低於 70% 標示為全班弱點
-                statHtml += `<li>❌ <b>第 ${i+1} 題</b> 正確率僅 <b>${rightRate}%</b> <span style="color:#e67e22;">(考核觀念：${concepts[i] || '未設定'})</span></li>`;
+            if (rightRate < 70) {
+                statHtml += `<li>❌ <b>第 ${i+1} 題</b> 正確率 <b>${rightRate}%</b> <span style="color:#e67e22;">(觀念：${concepts[i] || '未設定'})</span></li>`;
             }
         }
         statHtml += "</ul>";
         document.getElementById('classWrongStats').innerHTML = statHtml === "<ul></ul>" ? "🎉 太棒了！全班每題正確率皆在 70% 以上！" : statHtml;
     }
 
-    // 需求 9：高階全功能 Excel 分析表匯出 (包含全班統計、錯題對比、親師溝通個人分析頁)
     function exportFullExcel() {
         let csvContent = "\uFEFF=== 全班成績與弱點彙整總表 ===\n";
         csvContent += "座號,姓名,得分,錯誤題號,建議加強核心觀念\n";
@@ -308,8 +328,7 @@
         csvContent += "\n\n=== 全班各題正確率與觀念比對表 ===\n";
         csvContent += "題號,正確答案,全班答錯人數,全班正確率,對應核心知識點\n";
         
-        let qWrongCounts = Array(ansStr.length).fill(0);
-        let totalScanned = 0;
+        let qWrongCounts = Array(ansStr.length).fill(0); let totalScanned = 0;
         for (let no in results) { totalScanned++; results[no].errs.forEach(q => { qWrongCounts[q-1]++; }); }
         
         for(let i=0; i<ansStr.length; i++) {
