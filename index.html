@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v9.5 - 儲存按鈕修復版</title>
+    <title>🍎 班級批改大師 v9.6 - 名單儲存修復版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; --blue: #3498db; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -193,19 +193,29 @@
 
     function updateConcept(idx, val) { concepts[idx] = val; }
 
-    // 確實將學生名單與答案包進儲存物件中
+    // 🛠️ 終極修復：加入清洗引擎，強制將多行名單轉為純陣列與標準格式存入
     function saveYearData() {
         const name = document.getElementById('yearName').value.trim();
         if(!name) return alert("請輸入考卷名稱！");
         
+        // 清洗名單：移除空白行、移除前後隱藏的空白字元，統一換行格式
+        const rawNames = document.getElementById('nameInput').value;
+        const cleanedNamesArray = rawNames.split(/[\n\r]+/).map(n => n.trim()).filter(n => n.length > 0);
+        const standardizedNames = cleanedNamesArray.join('\n');
+        
         const data = {
             ans: document.getElementById('ansInput').value.trim(),
-            names: document.getElementById('nameInput').value.trim(),
+            names: standardizedNames, // 儲存徹底清洗乾淨的標準化字串
             concepts: concepts
         };
         localStorage.setItem('V9_DATA_' + name, JSON.stringify(data));
         refreshYearSelect();
-        alert("『" + name + "』完整考卷答案與學生名單已安全儲存！");
+        
+        // 儲存後立即更新目前名單到系統記憶體，確保不刷新網頁也能用
+        db = cleanedNamesArray.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n }));
+        cur = 0; results = {}; updateUI();
+        
+        alert("『" + name + "』完整答案與名單已【永久安全存入系統】！");
     }
 
     function refreshYearSelect() {
@@ -223,18 +233,20 @@
         sel.value = curVal;
     }
 
-    // 載入時確實抓取名單並刷新底層學生資料庫
+    // 載入時確實抓取清洗後的名單
     function autoLoadYear() {
         const key = document.getElementById('yearSelect').value;
         if(!key) return;
         const data = JSON.parse(localStorage.getItem(key));
         document.getElementById('yearName').value = key.replace('V9_DATA_', '');
         document.getElementById('ansInput').value = data.ans;
-        document.getElementById('nameInput').value = data.names || "";
+        
+        const namesStr = data.names || "";
+        document.getElementById('nameInput').value = namesStr;
         concepts = data.concepts || [];
         drawGrid();
         
-        const names = (data.names || "").split('\n').filter(n => n.trim());
+        const names = namesStr.split('\n').filter(n => n.trim());
         db = names.map((n, i) => ({ no: (i+1).toString().padStart(2,'0'), name: n.trim() }));
         cur = 0; results = {}; updateUI();
         document.getElementById('analysisCard').style.display = 'none';
@@ -245,6 +257,10 @@
         if(!key || !confirm("確定要刪除這份年份考卷的所有資料嗎？")) return;
         localStorage.removeItem(key);
         refreshYearSelect();
+        document.getElementById('yearName').value = "";
+        document.getElementById('ansInput').value = "";
+        document.getElementById('nameInput').value = "";
+        drawGrid();
     }
 
     function exportSyncFile() {
