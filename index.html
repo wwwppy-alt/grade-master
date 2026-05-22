@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🍎 班級批改大師 v9.4 - 全功能穩定儲存版</title>
+    <title>🍎 班級批改大師 v9.5 - 儲存按鈕修復版</title>
     <style>
         :root { --p: #ff7e5f; --bg: #fdf6e3; --success: #2ecc71; --blue: #3498db; }
         body { font-family: "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 10px; }
@@ -62,11 +62,11 @@
                 <p style="color:#999; font-size:12px; text-align:center;">請先設定答案，系統將自動生成觀念填寫欄</p>
             </div>
         </div>
-        
-        <button onclick="saveYearData()" style="width:100%; background:var(--success); color:white; border:none; padding:10px; border-radius:5px; margin-top:10px; font-weight:bold;">💾 儲存此年份與觀念至系統</button>
     </div>
     
-    <div style="display:flex; gap:5px; margin-top:8px;">
+    <button onclick="saveYearData()" style="width:100%; background:var(--success); color:white; border:none; padding:12px; border-radius:5px; margin-top:15px; font-weight:bold; font-size:16px; box-shadow: 0 4px 6px rgba(46,204,113,0.2);">💾 儲存此年份與觀念至系統</button>
+    
+    <div style="display:flex; gap:5px; margin-top:12px;">
         <button onclick="exportSyncFile()" style="flex:1; background:#9b59b6; color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">💻 電腦端：匯出全部資料(傳給手機)</button>
         <button onclick="document.getElementById('importFile').click()" style="flex:1; background:var(--blue); color:white; border:none; padding:8px; border-radius:5px; font-size:12px;">📱 手機端：匯入全部資料(同步)</button>
         <input type="file" id="importFile" style="display:none;" onchange="importSyncFile(this)">
@@ -193,19 +193,19 @@
 
     function updateConcept(idx, val) { concepts[idx] = val; }
 
-    // 🛠️ 關鍵修正：確實將學生名單 (names) 包進儲存物件中
+    // 確實將學生名單與答案包進儲存物件中
     function saveYearData() {
         const name = document.getElementById('yearName').value.trim();
         if(!name) return alert("請輸入考卷名稱！");
         
         const data = {
             ans: document.getElementById('ansInput').value.trim(),
-            names: document.getElementById('nameInput').value.trim(), // 確保儲存名單
+            names: document.getElementById('nameInput').value.trim(),
             concepts: concepts
         };
         localStorage.setItem('V9_DATA_' + name, JSON.stringify(data));
         refreshYearSelect();
-        alert("『" + name + "』完整考卷答案與【學生名單】已安全儲存！");
+        alert("『" + name + "』完整考卷答案與學生名單已安全儲存！");
     }
 
     function refreshYearSelect() {
@@ -223,14 +223,14 @@
         sel.value = curVal;
     }
 
-    // 🛠️ 關鍵修正：載入時確實抓取名單並刷新底層學生資料庫
+    // 載入時確實抓取名單並刷新底層學生資料庫
     function autoLoadYear() {
         const key = document.getElementById('yearSelect').value;
         if(!key) return;
         const data = JSON.parse(localStorage.getItem(key));
         document.getElementById('yearName').value = key.replace('V9_DATA_', '');
         document.getElementById('ansInput').value = data.ans;
-        document.getElementById('nameInput').value = data.names || ""; // 確實載入名單
+        document.getElementById('nameInput').value = data.names || "";
         concepts = data.concepts || [];
         drawGrid();
         
